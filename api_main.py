@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from physion_core import run_simulation
+import redis
+import json
+import uuid
 
 app = FastAPI(
     title="Physion V20 Web Simulation Engine",
     version="1.0.0"
+)
+
+redis_client = redis.Redis(
+    host="redis",
+    port=6379,
+    decode_responses=True
 )
 
 class SimulationInput(BaseModel):
@@ -14,9 +22,17 @@ class SimulationInput(BaseModel):
 
 @app.post("/simulate")
 def simulate(input: SimulationInput):
-    result = run_simulation(input.dict())
-    return {
-        "status": "ok",
-        "input": input.dict(),
-        "result": result
+    job_id = str(uuid.uuid4())
+
+    job_data = {
+        "job_id": job_id,
+        "input_data": input.dict()
     }
+
+    redis_client.rpush("physion-jobs", json.dumps(job_data))
+
+    return {
+        "status": "queued",
+        "job_id": job_id
+    }
+
