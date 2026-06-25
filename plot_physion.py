@@ -1,5 +1,7 @@
+import os
 import matplotlib.pyplot as plt
 from physion_core.cycle_engine import run_simulation
+
 
 def main():
     # 1) پارامترهای شبیه‌سازی (می‌توانی تغییر بدهی)
@@ -20,8 +22,11 @@ def main():
     cs_a = result["cs_anode"]
     cs_c = result["cs_cathode"]
 
+    # 3) ساخت پوشهٔ ذخیره‌سازی نمودارها
+    os.makedirs("plots", exist_ok=True)
+
     # -------------------------------
-    # 3) رسم نمودارها
+    # 4) رسم نمودارها
     # -------------------------------
 
     # Voltage
@@ -32,7 +37,7 @@ def main():
     plt.title("Voltage vs Time")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plot_voltage.png", dpi=300)
+    plt.savefig("plots/plot_voltage.png", dpi=300)
 
     # Temperature
     plt.figure()
@@ -42,7 +47,7 @@ def main():
     plt.title("Temperature vs Time")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plot_temperature.png", dpi=300)
+    plt.savefig("plots/plot_temperature.png", dpi=300)
 
     # Total Resistance
     plt.figure()
@@ -52,7 +57,7 @@ def main():
     plt.title("Resistance vs Time")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plot_resistance.png", dpi=300)
+    plt.savefig("plots/plot_resistance.png", dpi=300)
 
     # SEI
     plt.figure()
@@ -62,7 +67,7 @@ def main():
     plt.title("SEI Growth vs Time")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plot_sei.png", dpi=300)
+    plt.savefig("plots/plot_sei.png", dpi=300)
 
     # Surface concentration (anode)
     plt.figure()
@@ -72,7 +77,7 @@ def main():
     plt.title("Anode Surface Concentration vs Time")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plot_cs_anode.png", dpi=300)
+    plt.savefig("plots/plot_cs_anode.png", dpi=300)
 
     # Surface concentration (cathode)
     plt.figure()
@@ -82,9 +87,10 @@ def main():
     plt.title("Cathode Surface Concentration vs Time")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("plot_cs_cathode.png", dpi=300)
+    plt.savefig("plots/plot_cs_cathode.png", dpi=300)
 
-    print("All plots saved successfully.")
+    print("All plots saved successfully in 'plots' folder.")
+
 
 if __name__ == "__main__":
     main()
