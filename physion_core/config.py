@@ -35,7 +35,8 @@ class CellConfig:
         self.alpha_a   = 0.5
         self.R_particle_anode   = 5.0e-6
         self.eps_anode = 0.3
-        self.U_anode   = 0.01
+        # قبلاً U_anode ثابت بود، الان به‌عنوان مقدار مرجع نگه می‌داریم
+        self.U_anode_ref   = 0.01
 
         # Cathode
         self.D0_cathode  = 1.0e-14
@@ -93,7 +94,36 @@ class CellConfig:
         self.snapshot_every = 1
         self.live_plot_every = 1
 
+        # ===== اضافه‌شده برای SOC و OCV =====
+
+        # مقیاس ساده برای آپدیت SOC (بعداً می‌توانیم فیزیکی‌ترش کنیم)
+        self.soc_scale = 1e-5
+
+        # پارامترهای OCV ساده (می‌توانی بعداً با جدول واقعی جایگزین کنی)
+        self.U_anode_min = 0.0      # ولتاژ تعادلی آند در SOC=1
+        self.U_anode_max = 0.20     # در SOC=0 (مثال)
+
+        self.U_cathode_min = 3.80   # در SOC=0
+        self.U_cathode_max = 4.30   # در SOC=1
+
+    # ===== توابع موجود قبلی =====
+
     def j0_eff(self, j0r):
         return j0r*np.exp(-self.Ea_j0/self.R_gas*(1/self.T_cell-1/self.T_ref))
 
-   
+    # ===== توابع جدید برای MIT‑Real پایه =====
+
+    # جریان اعمالی (فعلاً ثابت؛ بعداً می‌توانی پروتکل واقعی بزاری)
+    def I_app(self):
+        # می‌توانی این را به C-rate و ظرفیت وصل کنی
+        return self.I_1C * self.C_rate
+
+    # OCV آند به‌عنوان تابعی از SOC
+    def U_anode(self, soc_a: float) -> float:
+        soc_a = max(0.0, min(1.0, soc_a))
+        return self.U_anode_min + (1.0 - soc_a) * (self.U_anode_max - self.U_anode_min)
+
+    # OCV کاتد به‌عنوان تابعی از SOC
+    def U_cathode(self, soc_c: float) -> float:
+        soc_c = max(0.0, min(1.0, soc_c))
+        return self.U_cathode_min + soc_c * (self.U_cathode_max - self.U_cathode_min)
