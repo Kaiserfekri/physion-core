@@ -23,6 +23,8 @@ def main():
     cs_c = result["cs_cathode"]
     eta_a = result["eta_anode"]
     eta_c = result["eta_cathode"]
+    j_lim_a = result["j_lim_anode"]      # NEW
+    j_lim_c = result["j_lim_cathode"]    # NEW
 
     # Create output folder
     os.makedirs("plots", exist_ok=True)
@@ -100,46 +102,52 @@ def main():
     plt.savefig("plots/plot_cs_cathode.png", dpi=300)
 
     # ============================================================
-    # 7) DENDRITE RISK — REAL DATA (NO GUESSING)
+    # 7) DENDRITE RISK — MIT‑REAL MODEL
     # ============================================================
 
     # η_total = η_cathode - η_anode
     eta_total = [eta_c[i] - eta_a[i] for i in range(len(t))]
 
-    # Normalize cs
+    # cs_max واقعی از مدل
     cs_max = max(cs_a) if max(cs_a) != 0 else 1.0
 
+    # η_crit از کانفیگ (اگر نبود، مقدار پیش‌فرض)
+    try:
+        from physion_core.config import CellConfig
+        eta_crit = CellConfig().eta_crit
+    except:
+        eta_crit = 0.05  # fallback
+
+    # MIT‑Real dendrite risk:
+    # Risk = (|η_anode| / η_crit) * (cs_a / cs_max)
     dendrite_risk = [
-        abs(eta_total[i]) * (1 - cs_a[i] / cs_max)
+        (abs(eta_a[i]) / (eta_crit + 1e-12)) * (cs_a[i] / (cs_max + 1e-12))
         for i in range(len(t))
     ]
 
     plt.figure()
     plt.plot(t, dendrite_risk, color="red")
     plt.xlabel("Time [s]")
-    plt.ylabel("Dendrite Risk (normalized)")
-    plt.title("Dendrite Risk vs Time (Using Real η and cs)")
+    plt.ylabel("Dendrite Risk Index")
+    plt.title("Dendrite Risk (|η|/η_crit × cs/cs_max)")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("plots/plot_dendrite_risk.png", dpi=300)
 
     # ============================================================
-    # 8) CCD — REAL DATA (NO GUESSING)
+    # 8) CCD — REAL PHYSICS (j_lim / |η|)
     # ============================================================
 
-    # CCD ∝ (1/R_total) * (cs_a/cs_max) * (1/|η_total|)
     ccd = [
-        (1.0 / R[i] if R[i] != 0 else 0.0)
-        * (cs_a[i] / cs_max)
-        * (1.0 / (abs(eta_total[i]) + 1e-12))
+        j_lim_a[i] / (abs(eta_total[i]) + 1e-12)
         for i in range(len(t))
     ]
 
     plt.figure()
     plt.plot(t, ccd, color="purple")
     plt.xlabel("Time [s]")
-    plt.ylabel("CCD (normalized)")
-    plt.title("Critical Current Density vs Time (Using Real η and R)")
+    plt.ylabel("CCD (A/m^2)")
+    plt.title("Critical Current Density vs Time (Using j_lim and η)")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("plots/plot_ccd.png", dpi=300)
