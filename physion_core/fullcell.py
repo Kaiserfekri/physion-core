@@ -8,7 +8,8 @@ from .resistance import ResistanceModel
 
 class FullCellModel:
     """
-    Full cell simulation engine for Physion Web Engine (revised)
+    Full cell simulation engine for Physion Web Engine
+    (revised: SOC + OCV(SOC) + full history)
     """
 
     def __init__(self, cfg):
@@ -35,6 +36,8 @@ class FullCellModel:
             "cs_cathode": [],
             "eta_anode": [],
             "eta_cathode": [],
+            "soc_anode": [],
+            "soc_cathode": [],
         }
 
     def step(self, dt):
@@ -64,20 +67,17 @@ class FullCellModel:
         R_total = self.resistance.total()
 
         # --- Cell voltage ---
-        # اگر cfg ولتاژ تعادلی آند/کاتد را داشته باشد، بهتر است از آن استفاده کنیم.
-        # در غیر این صورت، فعلاً از مدل سادهٔ overpotential + IR استفاده می‌کنیم.
-        #
-        # V_cell = (phi_c - phi_a) ≈ (U_c - U_a) + (eta_c - eta_a) - j * R_total
-        #
+        # V_cell = (phi_c - phi_a) ≈ (U_c(SOC_c) - U_a(SOC_a)) + (eta_c - eta_a) - j * R_total
         if hasattr(self.cfg, "U_cathode") and hasattr(self.cfg, "U_anode"):
-            V_eq = self.cfg.U_cathode - self.cfg.U_anode
+            U_a = self.cfg.U_anode(self.anode.soc)
+            U_c = self.cfg.U_cathode(self.cathode.soc)
+            V_eq = U_c - U_a
         else:
-            # اگر OCV تعریف نشده، فعلاً 0 در نظر می‌گیریم (مدل ساده‌تر)
             V_eq = 0.0
 
         V = V_eq + (eta_c - eta_a) - j * R_total
 
-        # Update diffusion in electrodes
+        # Update diffusion in electrodes (includes SOC update inside electrode)
         self.anode.update_diffusion(j, dt)
         self.cathode.update_diffusion(-j, dt)
 
@@ -98,6 +98,8 @@ class FullCellModel:
         self.history["cs_cathode"].append(float(cs_c))
         self.history["eta_anode"].append(float(eta_a))
         self.history["eta_cathode"].append(float(eta_c))
+        self.history["soc_anode"].append(float(self.anode.soc))
+        self.history["soc_cathode"].append(float(self.cathode.soc))
 
     def run(self):
         """
