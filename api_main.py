@@ -5,6 +5,9 @@ import json
 import uuid
 import sqlite3
 
+# NEW: SQLAlchemy imports
+from database import SessionLocal, SimulationResult
+
 app = FastAPI(
     title="Physion V20 Web Simulation Engine",
     version="1.0.0"
@@ -17,7 +20,7 @@ redis_client = redis.Redis(
     decode_responses=True
 )
 
-# SQLite DB file
+# SQLite DB file (used only for worker results)
 DB_FILE = "physion.db"
 
 def get_db():
@@ -39,7 +42,20 @@ def simulate(input: SimulationInput):
         "input_data": input.dict()
     }
 
+    # Push job to Redis queue
     redis_client.rpush("physion-jobs", json.dumps(job_data))
+
+    # NEW: Save simulation request in SQLAlchemy DB
+    session = SessionLocal()
+    sim = SimulationResult(
+        name=f"job_{job_id}",
+        steps=0,                # هنوز worker اجرا نشده
+        avg_voltage=0.0,        # بعداً worker مقدار واقعی را ذخیره می‌کند
+        max_temperature=0.0
+    )
+    session.add(sim)
+    session.commit()
+    session.close()
 
     return {
         "status": "queued",
@@ -92,4 +108,3 @@ def get_result(job_id: str):
         "result": result_json,
         "metrics": metrics_json
     }
-
