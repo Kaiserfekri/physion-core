@@ -1,20 +1,18 @@
 from sqlalchemy import (
     create_engine, Column, Integer, Float, String, Boolean,
-    ForeignKey, Text, DateTime
+    ForeignKey, Text, DateTime, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 
+# برای محیط جدی بهتر است Postgres باشد؛ فعلاً SQLite برای توسعه
 DATABASE_URL = "sqlite:///physion.db"
 
-engine = create_engine(DATABASE_URL, echo=False)
-SessionLocal = sessionmaker(bind=engine)
+engine = create_engine(DATABASE_URL, echo=False, future=True)
+SessionLocal = sessionmaker(bind=engine, future=True)
 Base = declarative_base()
 
 
-# ==========================
-# USER MODEL
-# ==========================
 class User(Base):
     __tablename__ = "users"
 
@@ -28,9 +26,6 @@ class User(Base):
     simulations = relationship("SimulationResult", back_populates="user")
 
 
-# ==========================
-# SIMULATION RESULT MODEL
-# ==========================
 class SimulationResult(Base):
     __tablename__ = "simulation_results"
 
@@ -47,14 +42,19 @@ class SimulationResult(Base):
     job = relationship("Job", back_populates="simulation", uselist=False)
 
 
-# ==========================
-# JOB MODEL
-# ==========================
 class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(String, primary_key=True, index=True)
+
     status = Column(String, index=True)
+    state = Column(String, default="queued", index=True)
+
+    attempts = Column(Integer, default=0)
+    last_error = Column(Text, nullable=True)
+
+    next_run_at = Column(DateTime, nullable=True)
+    last_heartbeat = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     finished_at = Column(DateTime, nullable=True)
@@ -63,14 +63,11 @@ class Job(Base):
     results = relationship("JobResult", back_populates="job")
 
 
-# ==========================
-# JOB RESULT MODEL
-# ==========================
 class JobResult(Base):
     __tablename__ = "job_results"
 
     id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(String, ForeignKey("jobs.id"), index=True)
+    job_id = Column(String, ForeignKey("jobs.id"), index=True, nullable=False)
 
     result = Column(Text)
     metrics = Column(Text)
@@ -78,6 +75,20 @@ class JobResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", back_populates="results")
+
+    __table_args__ = (
+        UniqueConstraint("job_id", name="uq_jobresult_job_id"),
+    )
+
+
+class OutboxJob(Base):
+    __tablename__ = "outbox_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String, index=True, nullable=False)
+    payload = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    processed = Column(Boolean, default=False, index=True)
 
 
 def init_db():
