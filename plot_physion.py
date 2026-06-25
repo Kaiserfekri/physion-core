@@ -26,7 +26,7 @@ def main():
     os.makedirs("plots", exist_ok=True)
 
     # -------------------------------
-    # 4) رسم نمودارها
+    # 4) رسم نمودارهای اصلی
     # -------------------------------
 
     # Voltage
@@ -88,6 +88,55 @@ def main():
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("plots/plot_cs_cathode.png", dpi=300)
+
+    # -------------------------------
+    # 5) محاسبهٔ کمیت‌های کمکی برای ریسک دندریت و CCD
+    # -------------------------------
+
+    # تخمین سادهٔ overpotential: η ≈ V + I*R
+    # چون I_app در مدل ثابت است، اینجا نرمال‌سازی شده با 1.0 در نظر می‌گیریم
+    eta = [V[i] + R[i] for i in range(len(V))]
+
+    # حداکثر غلظت سطحی آند برای نرمال‌سازی
+    cs_max = max(cs_a) if max(cs_a) != 0 else 1.0
+
+    # -------------------------------
+    # 6) نمودار ریسک دندریت (واقعی‌تر)
+    # Risk ~ f(η, cs_a)
+    # -------------------------------
+    dendrite_risk = [
+        (abs(eta[i]) / (abs(eta[i]) + 1e-9)) * (1.0 - cs_a[i] / cs_max)
+        for i in range(len(t))
+    ]
+
+    plt.figure()
+    plt.plot(t, dendrite_risk, color="red")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Dendrite Risk Index (normalized)")
+    plt.title("Dendrite Risk vs Time")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("plots/plot_dendrite_risk.png", dpi=300)
+
+    # -------------------------------
+    # 7) نمودار CCD (واقعی‌تر)
+    # CCD ~ 1/R * (cs_a/cs_max) * 1/|η|
+    # -------------------------------
+    ccd = [
+        (1.0 / R[i] if R[i] != 0 else 0.0)
+        * (cs_a[i] / cs_max)
+        * (1.0 / (abs(eta[i]) + 1e-9))
+        for i in range(len(t))
+    ]
+
+    plt.figure()
+    plt.plot(t, ccd, color="purple")
+    plt.xlabel("Time [s]")
+    plt.ylabel("CCD (normalized)")
+    plt.title("Critical Current Density vs Time")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("plots/plot_ccd.png", dpi=300)
 
     print("All plots saved successfully in 'plots' folder.")
 
