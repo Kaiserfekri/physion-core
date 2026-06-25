@@ -3,6 +3,9 @@ import redis
 import sqlite3
 from physion_core.cycle_engine import run_simulation
 
+# NEW: SQLAlchemy imports
+from database import SessionLocal, SimulationResult
+
 # Redis connection
 redis_client = redis.Redis(
     host="redis",
@@ -95,6 +98,24 @@ while True:
         save_job_status(job_id, "done")
 
         print(f"Job {job_id} done")
+
+        # ======================================================
+        # NEW: Update SQLAlchemy simulation record
+        # ======================================================
+        session = SessionLocal()
+
+        sim = session.query(SimulationResult).filter(
+            SimulationResult.name == f"job_{job_id}"
+        ).first()
+
+        if sim:
+            sim.steps = len(result["t"])
+            sim.avg_voltage = float(sum(result["V"]) / len(result["V"]))
+            sim.max_temperature = max(result["T"])
+            session.commit()
+
+        session.close()
+        # ======================================================
 
     except Exception as e:
         save_job_status(job_id, "failed")
