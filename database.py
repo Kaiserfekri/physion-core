@@ -1,5 +1,5 @@
-from sqlalchemy import create_engine, Column, Integer, Float, String, Boolean
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import create_engine, Column, Integer, Float, String, Boolean, ForeignKey
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 # SQLite database file
 DATABASE_URL = "sqlite:///physion.db"
@@ -14,6 +14,27 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
+# ==========================
+# USER MODEL (با نقش‌ها)
+# ==========================
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    is_active = Column(Boolean, default=True)
+
+    # NEW: نقش‌ها
+    role = Column(String, default="user")   # user یا admin
+
+    # NEW: ارتباط با SimulationResult
+    simulations = relationship("SimulationResult", back_populates="user")
+
+
+# ==========================
+# SIMULATION RESULT MODEL
+# ==========================
 class SimulationResult(Base):
     __tablename__ = "simulation_results"
 
@@ -23,16 +44,15 @@ class SimulationResult(Base):
     avg_voltage = Column(Float)
     max_temperature = Column(Float)
 
+    # NEW: اتصال به کاربر
+    user_id = Column(Integer, ForeignKey("users.id"))
 
-# ⭐⭐ NEW — User Model for Auth (مرحله ۴) ⭐⭐
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
+    # NEW: ارتباط ORM
+    user = relationship("User", back_populates="simulations")
 
 
+# ==========================
+# INIT DB
+# ==========================
 def init_db():
     Base.metadata.create_all(bind=engine)
