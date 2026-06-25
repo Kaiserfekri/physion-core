@@ -110,7 +110,7 @@ def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
         steps=0,
         avg_voltage=0.0,
         max_temperature=0.0,
-        user_id=current_user.id   # NEW — اتصال شبیه‌سازی به کاربر
+        user_id=current_user.id   # اتصال شبیه‌سازی به کاربر
     )
     session.add(sim)
     session.commit()
