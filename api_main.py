@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 import redis
 import json
@@ -6,21 +7,68 @@ import uuid
 import sqlite3
 
 # NEW: SQLAlchemy imports
-from database import SessionLocal, SimulationResult
+from database import SessionLocal, SimulationResult, User
+
+# NEW: JWT imports
+from jose import jwt, JWTError
+
+# NEW: include auth router
+from auth_main import router as auth_router
+
 
 app = FastAPI(
     title="Physion V20 Web Simulation Engine",
     version="1.0.0"
 )
 
-# Redis connection
+# ==========================
+# AUTH CONFIG
+# ==========================
+SECRET_KEY = "CHANGE_THIS_TO_A_SECURE_KEY"
+ALGORITHM = "HS256"
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+# include auth endpoints
+app.include_router(auth_router)
+
+
+# ==========================
+# AUTH HELPER
+# ==========================
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+    )
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    session = SessionLocal()
+    user = session.query(User).filter(User.email == email).first()
+    session.close()
+
+    if user is None:
+        raise credentials_exception
+
+    return user
+
+
+# ==========================
+# REDIS + SQLITE
+# ==========================
 redis_client = redis.Redis(
     host="redis",
     port=6379,
     decode_responses=True
 )
 
-# SQLite DB file (used only for worker results)
 DB_FILE = "physion.db"
 
 def get_db():
@@ -33,8 +81,11 @@ class SimulationInput(BaseModel):
     T_cell: float = 298.15
 
 
+# ==========================
+# SIMULATE (Protected)
+# ==========================
 @app.post("/simulate")
-def simulate(input: SimulationInput):
+def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
     job_id = str(uuid.uuid4())
 
     job_data = {
@@ -45,12 +96,12 @@ def simulate(input: SimulationInput):
     # Push job to Redis queue
     redis_client.rpush("physion-jobs", json.dumps(job_data))
 
-    # NEW: Save simulation request in SQLAlchemy DB
+    # Save simulation request in SQLAlchemy DB
     session = SessionLocal()
     sim = SimulationResult(
         name=f"job_{job_id}",
-        steps=0,                # هنوز worker اجرا نشده
-        avg_voltage=0.0,        # بعداً worker مقدار واقعی را ذخیره می‌کند
+        steps=0,
+        avg_voltage=0.0,
         max_temperature=0.0
     )
     session.add(sim)
@@ -63,9 +114,11 @@ def simulate(input: SimulationInput):
     }
 
 
-# ⭐⭐ اندپوینت نتیجه — بیرون از simulate ⭐⭐
+# ==========================
+# RESULT (Protected)
+# ==========================
 @app.get("/result/{job_id}")
-def get_result(job_id: str):
+def get_result(job_id: str, current_user = Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
 
@@ -79,12 +132,11 @@ def get_result(job_id: str):
 
     status = row[0]
 
-    # If still running or failed
     if status != "done":
         conn.close()
         return {"job_id": job_id, "status": status}
 
-    # If done → fetch result
+    # Fetch result
     cur.execute("""
         SELECT result, metrics
         FROM job_results
