@@ -24,6 +24,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class UserCreate(BaseModel):
     email: str
     password: str
+    role: str = "user"   # NEW — نقش پیش‌فرض
 
 
 class UserLogin(BaseModel):
@@ -67,7 +68,14 @@ def register(user: UserCreate):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed = get_password_hash(user.password)
-    db_user = User(email=user.email, hashed_password=hashed)
+
+    # NEW — ذخیره نقش
+    db_user = User(
+        email=user.email,
+        hashed_password=hashed,
+        role=user.role   # NEW
+    )
+
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
