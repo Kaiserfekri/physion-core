@@ -34,7 +34,7 @@ app.include_router(auth_router)
 
 
 # ==========================
-# AUTH HELPER
+# AUTH HELPERS
 # ==========================
 def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
@@ -58,6 +58,13 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
 
     return user
+
+
+# ⭐⭐ NEW — تابع چک ادمین ⭐⭐
+def require_admin(current_user = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
 
 
 # ==========================
@@ -102,7 +109,8 @@ def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
         name=f"job_{job_id}",
         steps=0,
         avg_voltage=0.0,
-        max_temperature=0.0
+        max_temperature=0.0,
+        user_id=current_user.id   # NEW — اتصال شبیه‌سازی به کاربر
     )
     session.add(sim)
     session.commit()
@@ -160,3 +168,25 @@ def get_result(job_id: str, current_user = Depends(get_current_user)):
         "result": result_json,
         "metrics": metrics_json
     }
+
+
+# ==========================
+# ⭐⭐ NEW — اندپوینت مخصوص ادمین ⭐⭐
+# ==========================
+@app.get("/admin/simulations")
+def admin_list_simulations(current_user = Depends(require_admin)):
+    session = SessionLocal()
+    sims = session.query(SimulationResult).all()
+    session.close()
+
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "steps": s.steps,
+            "avg_voltage": s.avg_voltage,
+            "max_temperature": s.max_temperature,
+            "user_id": s.user_id
+        }
+        for s in sims
+    ]
