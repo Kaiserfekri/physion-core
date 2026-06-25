@@ -4,15 +4,9 @@ from pydantic import BaseModel
 import redis
 import json
 import uuid
-import sqlite3
 
-# NEW: SQLAlchemy imports
-from database import SessionLocal, SimulationResult, User
-
-# NEW: JWT imports
+from database import SessionLocal, SimulationResult, User, Job, JobResult
 from jose import jwt, JWTError
-
-# NEW: include auth router
 from auth_main import router as auth_router
 
 
@@ -21,15 +15,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ==========================
-# AUTH CONFIG
-# ==========================
 SECRET_KEY = "CHANGE_THIS_TO_A_SECURE_KEY"
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
-# include auth endpoints
 app.include_router(auth_router)
 
 
@@ -60,7 +50,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-# ⭐⭐ NEW — تابع چک ادمین ⭐⭐
 def require_admin(current_user = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -68,7 +57,7 @@ def require_admin(current_user = Depends(get_current_user)):
 
 
 # ==========================
-# REDIS + SQLITE
+# REDIS
 # ==========================
 redis_client = redis.Redis(
     host="redis",
@@ -76,12 +65,10 @@ redis_client = redis.Redis(
     decode_responses=True
 )
 
-DB_FILE = "physion.db"
 
-def get_db():
-    return sqlite3.connect(DB_FILE)
-
-
+# ==========================
+# INPUT MODEL
+# ==========================
 class SimulationInput(BaseModel):
     C_rate: float = 1.0
     n_cycles: int = 1
@@ -89,7 +76,7 @@ class SimulationInput(BaseModel):
 
 
 # ==========================
-# SIMULATE (Protected)
+# SIMULATE
 # ==========================
 @app.post("/simulate")
 def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
@@ -100,19 +87,29 @@ def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
         "input_data": input.dict()
     }
 
-    # Push job to Redis queue
+    # ارسال job به صف Redis
     redis_client.rpush("physion-jobs", json.dumps(job_data))
 
-    # Save simulation request in SQLAlchemy DB
     session = SessionLocal()
+
+    # ایجاد رکورد Job
+    job_obj = Job(
+        id=job_id,
+        status="queued",
+    )
+    session.add(job_obj)
+
+    # ایجاد SimulationResult
     sim = SimulationResult(
         name=f"job_{job_id}",
         steps=0,
         avg_voltage=0.0,
         max_temperature=0.0,
-        user_id=current_user.id   # اتصال شبیه‌سازی به کاربر
+        user_id=current_user.id,
+        job_id=job_id
     )
     session.add(sim)
+
     session.commit()
     session.close()
 
@@ -123,44 +120,33 @@ def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
 
 
 # ==========================
-# RESULT (Protected)
+# RESULT
 # ==========================
 @app.get("/result/{job_id}")
 def get_result(job_id: str, current_user = Depends(get_current_user)):
-    conn = get_db()
-    cur = conn.cursor()
+    session = SessionLocal()
 
-    # Check job status
-    cur.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
-    row = cur.fetchone()
-
-    if not row:
-        conn.close()
+    job = session.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        session.close()
         return {"error": "job_id not found"}
 
-    status = row[0]
-
-    if status != "done":
-        conn.close()
+    if job.status != "done":
+        status = job.status
+        session.close()
         return {"job_id": job_id, "status": status}
 
-    # Fetch result
-    cur.execute("""
-        SELECT result, metrics
-        FROM job_results
-        WHERE job_id = ?
-        ORDER BY id DESC
-        LIMIT 1
-    """, (job_id,))
+    job_result = session.query(JobResult).filter(
+        JobResult.job_id == job_id
+    ).order_by(JobResult.id.desc()).first()
 
-    result_row = cur.fetchone()
-    conn.close()
+    session.close()
 
-    if not result_row:
+    if not job_result:
         return {"error": "result not found"}
 
-    result_json = json.loads(result_row[0])
-    metrics_json = json.loads(result_row[1])
+    result_json = json.loads(job_result.result)
+    metrics_json = json.loads(job_result.metrics)
 
     return {
         "job_id": job_id,
@@ -171,7 +157,7 @@ def get_result(job_id: str, current_user = Depends(get_current_user)):
 
 
 # ==========================
-# ⭐⭐ NEW — اندپوینت مخصوص ادمین ⭐⭐
+# ADMIN LIST
 # ==========================
 @app.get("/admin/simulations")
 def admin_list_simulations(current_user = Depends(require_admin)):
@@ -186,14 +172,15 @@ def admin_list_simulations(current_user = Depends(require_admin)):
             "steps": s.steps,
             "avg_voltage": s.avg_voltage,
             "max_temperature": s.max_temperature,
-            "user_id": s.user_id
+            "user_id": s.user_id,
+            "job_id": s.job_id
         }
         for s in sims
     ]
 
 
 # ==========================
-# ⭐⭐ NEW — لیست شبیه‌سازی‌های کاربر ⭐⭐
+# USER LIST
 # ==========================
 @app.get("/my/simulations")
 def my_simulations(current_user = Depends(get_current_user)):
@@ -209,7 +196,9 @@ def my_simulations(current_user = Depends(get_current_user)):
             "name": s.name,
             "steps": s.steps,
             "avg_voltage": s.avg_voltage,
-            "max_temperature": s.max_temperature
+            "max_temperature": s.max_temperature,
+            "job_id": s.job_id
         }
         for s in sims
     ]
+
