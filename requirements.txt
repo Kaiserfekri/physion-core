@@ -2,3 +2,10 @@ fastapi
 uvicorn
 numpy
 pydantic
+redis
+streamlit
+sqlalchemy
+pandas
+scipy
+matplotlib
+python-dotenv
