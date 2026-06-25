@@ -4,14 +4,14 @@ from physion_core.cycle_engine import run_simulation
 
 
 def main():
-    # 1) پارامترهای شبیه‌سازی (می‌توانی تغییر بدهی)
+    # Simulation parameters
     params = {
         "n_cycles": 1,
         "t_half_cycle": 100,
         "dt_min": 0.1,
     }
 
-    # 2) اجرای شبیه‌سازی
+    # Run simulation
     result = run_simulation(params)
 
     t = result["t"]
@@ -21,15 +21,15 @@ def main():
     sei = result["sei_avg"]
     cs_a = result["cs_anode"]
     cs_c = result["cs_cathode"]
+    eta_a = result["eta_anode"]
+    eta_c = result["eta_cathode"]
 
-    # 3) ساخت پوشهٔ ذخیره‌سازی نمودارها
+    # Create output folder
     os.makedirs("plots", exist_ok=True)
 
     # -------------------------------
-    # 4) رسم نمودارهای اصلی
+    # 1) Voltage
     # -------------------------------
-
-    # Voltage
     plt.figure()
     plt.plot(t, V)
     plt.xlabel("Time [s]")
@@ -39,7 +39,9 @@ def main():
     plt.tight_layout()
     plt.savefig("plots/plot_voltage.png", dpi=300)
 
-    # Temperature
+    # -------------------------------
+    # 2) Temperature
+    # -------------------------------
     plt.figure()
     plt.plot(t, T)
     plt.xlabel("Time [s]")
@@ -49,7 +51,9 @@ def main():
     plt.tight_layout()
     plt.savefig("plots/plot_temperature.png", dpi=300)
 
-    # Total Resistance
+    # -------------------------------
+    # 3) Total Resistance
+    # -------------------------------
     plt.figure()
     plt.plot(t, R)
     plt.xlabel("Time [s]")
@@ -59,7 +63,9 @@ def main():
     plt.tight_layout()
     plt.savefig("plots/plot_resistance.png", dpi=300)
 
-    # SEI
+    # -------------------------------
+    # 4) SEI Growth
+    # -------------------------------
     plt.figure()
     plt.plot(t, sei)
     plt.xlabel("Time [s]")
@@ -69,7 +75,9 @@ def main():
     plt.tight_layout()
     plt.savefig("plots/plot_sei.png", dpi=300)
 
-    # Surface concentration (anode)
+    # -------------------------------
+    # 5) Surface Concentration (Anode)
+    # -------------------------------
     plt.figure()
     plt.plot(t, cs_a)
     plt.xlabel("Time [s]")
@@ -79,7 +87,9 @@ def main():
     plt.tight_layout()
     plt.savefig("plots/plot_cs_anode.png", dpi=300)
 
-    # Surface concentration (cathode)
+    # -------------------------------
+    # 6) Surface Concentration (Cathode)
+    # -------------------------------
     plt.figure()
     plt.plot(t, cs_c)
     plt.xlabel("Time [s]")
@@ -89,43 +99,39 @@ def main():
     plt.tight_layout()
     plt.savefig("plots/plot_cs_cathode.png", dpi=300)
 
-    # -------------------------------
-    # 5) محاسبهٔ کمیت‌های کمکی برای ریسک دندریت و CCD
-    # -------------------------------
+    # ============================================================
+    # 7) DENDRITE RISK — REAL DATA (NO GUESSING)
+    # ============================================================
 
-    # تخمین سادهٔ overpotential: η ≈ V + I*R
-    # چون I_app در مدل ثابت است، اینجا نرمال‌سازی شده با 1.0 در نظر می‌گیریم
-    eta = [V[i] + R[i] for i in range(len(V))]
+    # η_total = η_cathode - η_anode
+    eta_total = [eta_c[i] - eta_a[i] for i in range(len(t))]
 
-    # حداکثر غلظت سطحی آند برای نرمال‌سازی
+    # Normalize cs
     cs_max = max(cs_a) if max(cs_a) != 0 else 1.0
 
-    # -------------------------------
-    # 6) نمودار ریسک دندریت (واقعی‌تر)
-    # Risk ~ f(η, cs_a)
-    # -------------------------------
     dendrite_risk = [
-        (abs(eta[i]) / (abs(eta[i]) + 1e-9)) * (1.0 - cs_a[i] / cs_max)
+        abs(eta_total[i]) * (1 - cs_a[i] / cs_max)
         for i in range(len(t))
     ]
 
     plt.figure()
     plt.plot(t, dendrite_risk, color="red")
     plt.xlabel("Time [s]")
-    plt.ylabel("Dendrite Risk Index (normalized)")
-    plt.title("Dendrite Risk vs Time")
+    plt.ylabel("Dendrite Risk (normalized)")
+    plt.title("Dendrite Risk vs Time (Using Real η and cs)")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("plots/plot_dendrite_risk.png", dpi=300)
 
-    # -------------------------------
-    # 7) نمودار CCD (واقعی‌تر)
-    # CCD ~ 1/R * (cs_a/cs_max) * 1/|η|
-    # -------------------------------
+    # ============================================================
+    # 8) CCD — REAL DATA (NO GUESSING)
+    # ============================================================
+
+    # CCD ∝ (1/R_total) * (cs_a/cs_max) * (1/|η_total|)
     ccd = [
         (1.0 / R[i] if R[i] != 0 else 0.0)
         * (cs_a[i] / cs_max)
-        * (1.0 / (abs(eta[i]) + 1e-9))
+        * (1.0 / (abs(eta_total[i]) + 1e-12))
         for i in range(len(t))
     ]
 
@@ -133,7 +139,7 @@ def main():
     plt.plot(t, ccd, color="purple")
     plt.xlabel("Time [s]")
     plt.ylabel("CCD (normalized)")
-    plt.title("Critical Current Density vs Time")
+    plt.title("Critical Current Density vs Time (Using Real η and R)")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("plots/plot_ccd.png", dpi=300)
