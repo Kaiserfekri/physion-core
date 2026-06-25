@@ -8,7 +8,7 @@ from .resistance import ResistanceModel
 
 class FullCellModel:
     """
-    Full cell simulation engine for Physion Web Engine
+    Full cell simulation engine for Physion Web Engine (revised)
     """
 
     def __init__(self, cfg):
@@ -33,6 +33,8 @@ class FullCellModel:
             "R_total": [],
             "cs_anode": [],
             "cs_cathode": [],
+            "eta_anode": [],
+            "eta_cathode": [],
         }
 
     def step(self, dt):
@@ -40,43 +42,48 @@ class FullCellModel:
         One simulation step
         """
 
-        # Applied current
+        # Applied current density (A/m^2 or normalized)
         j = self.cfg.I_app()
 
         # Surface concentrations
         cs_a = self.anode.surface_concentration()
         cs_c = self.cathode.surface_concentration()
 
-        # Overpotentials
+        # Overpotentials (from ElectrodeSPM / Butler–Volmer)
         eta_a = self.anode.overpotential(j)
         eta_c = self.cathode.overpotential(-j)
 
-        # SEI growth
-        sei_rate = abs(j) * 1e-9
+        # --- SEI update (only via TZIM, no fake sei_rate model) ---
         self.tzim.update_sei(j, dt)
-
-        # Update SEI resistance
         sei_avg = float(np.mean(self.tzim.sei))
+
+        # Update SEI resistance from SEI thickness
         self.resistance.update_sei_resistance(sei_avg)
 
-        # Total resistance
+        # Total resistance (ohmic + SEI + others)
         R_total = self.resistance.total()
 
-        # Cell voltage
-        V = (
-            self.cfg.U_anode
-            - self.cfg.U_anode
-            + eta_c
-            - eta_a
-            - j * R_total
-        )
+        # --- Cell voltage ---
+        # اگر cfg ولتاژ تعادلی آند/کاتد را داشته باشد، بهتر است از آن استفاده کنیم.
+        # در غیر این صورت، فعلاً از مدل سادهٔ overpotential + IR استفاده می‌کنیم.
+        #
+        # V_cell = (phi_c - phi_a) ≈ (U_c - U_a) + (eta_c - eta_a) - j * R_total
+        #
+        if hasattr(self.cfg, "U_cathode") and hasattr(self.cfg, "U_anode"):
+            V_eq = self.cfg.U_cathode - self.cfg.U_anode
+        else:
+            # اگر OCV تعریف نشده، فعلاً 0 در نظر می‌گیریم (مدل ساده‌تر)
+            V_eq = 0.0
 
-        # Update diffusion
+        V = V_eq + (eta_c - eta_a) - j * R_total
+
+        # Update diffusion in electrodes
         self.anode.update_diffusion(j, dt)
         self.cathode.update_diffusion(-j, dt)
 
         # Update thermal model
-        self.thermal.update(j, eta_a + eta_c, sei_rate, dt)
+        # منبع گرما ~ j * (eta_a + eta_c) + losses
+        self.thermal.update(j, eta_a + eta_c, sei_avg, dt)
 
         # Time update
         self.t += dt
@@ -89,6 +96,8 @@ class FullCellModel:
         self.history["R_total"].append(float(R_total))
         self.history["cs_anode"].append(float(cs_a))
         self.history["cs_cathode"].append(float(cs_c))
+        self.history["eta_anode"].append(float(eta_a))
+        self.history["eta_cathode"].append(float(eta_c))
 
     def run(self):
         """
