@@ -190,3 +190,26 @@ def admin_list_simulations(current_user = Depends(require_admin)):
         }
         for s in sims
     ]
+
+
+# ==========================
+# ⭐⭐ NEW — لیست شبیه‌سازی‌های کاربر ⭐⭐
+# ==========================
+@app.get("/my/simulations")
+def my_simulations(current_user = Depends(get_current_user)):
+    session = SessionLocal()
+    sims = session.query(SimulationResult).filter(
+        SimulationResult.user_id == current_user.id
+    ).all()
+    session.close()
+
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "steps": s.steps,
+            "avg_voltage": s.avg_voltage,
+            "max_temperature": s.max_temperature
+        }
+        for s in sims
+    ]
