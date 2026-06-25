@@ -3,7 +3,7 @@ import numpy as np
 class ElectrodeSPM:
     """
     Single Particle Model (SPM) electrode
-    Clean version for Physion Web Engine + SOC support
+    Clean version for Physion Web Engine + SOC + j_lim
     """
 
     def __init__(self, cfg, is_anode=True):
@@ -31,7 +31,6 @@ class ElectrodeSPM:
         self.dr = self.r[1] - self.r[0]
 
         # ===== NEW: SOC state =====
-        # آند پر → SOC=1 ، کاتد خالی → SOC=0
         self.soc = 1.0 if is_anode else 0.0
 
     def D_eff(self):
@@ -45,6 +44,16 @@ class ElectrodeSPM:
     def surface_concentration(self):
         """Return concentration at particle surface"""
         return self.cs[-1]
+
+    # ===== NEW: j_lim =====
+    def j_lim(self):
+        """
+        Limiting current density based on diffusion limit:
+        j_lim ≈ D_eff * cs_surface / R
+        """
+        cs_surf = self.surface_concentration()
+        D = self.D_eff()
+        return D * cs_surf / (self.R + 1e-12)
 
     def update_diffusion(self, j, dt):
         """
@@ -86,4 +95,5 @@ class ElectrodeSPM:
             "cs": self.cs.tolist(),
             "surface_cs": float(self.surface_concentration()),
             "soc": float(self.soc),
+            "j_lim": float(self.j_lim()),
         }
