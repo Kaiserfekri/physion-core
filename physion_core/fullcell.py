@@ -1,9 +1,13 @@
 import numpy as np
+import logging
 
 from .electrode import ElectrodeSPM
 from .tzim import TZIMModel
 from .thermal import ThermalModel
 from .resistance import ResistanceModel
+
+# ===== اضافه‌شده برای مرحله ۲ (Logging) =====
+logger = logging.getLogger("fullcell")
 
 
 class FullCellModel:
@@ -41,6 +45,8 @@ class FullCellModel:
             "j_lim_anode": [],
             "j_lim_cathode": [],
         }
+
+        logger.info("FullCellModel initialized.")
 
     def step(self, dt):
         """
@@ -91,6 +97,12 @@ class FullCellModel:
         j_lim_a = self.anode.j_lim()
         j_lim_c = self.cathode.j_lim()
 
+        # ===== Logging (مرحله ۲) =====
+        logger.debug(
+            f"t={self.t:.2f}, V={V:.3f}, eta_a={eta_a:.4f}, eta_c={eta_c:.4f}, "
+            f"j_lim_a={j_lim_a:.4f}, j_lim_c={j_lim_c:.4f}"
+        )
+
         # Save history
         self.history["t"].append(self.t)
         self.history["V"].append(float(V))
@@ -113,7 +125,10 @@ class FullCellModel:
         dt = self.cfg.dt_min
         steps = int(self.cfg.n_cycles * self.cfg.t_half_cycle / dt)
 
+        logger.info("FullCellModel: Simulation started. Steps=%d", steps)
+
         for _ in range(steps):
             self.step(dt)
 
+        logger.info("FullCellModel: Simulation finished.")
         return self.history
