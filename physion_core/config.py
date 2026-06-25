@@ -106,6 +106,9 @@ class CellConfig:
         self.U_cathode_min = 3.80   # در SOC=0
         self.U_cathode_max = 4.30   # در SOC=1
 
+        # ===== اضافه‌شده برای ریسک دندریت =====
+        self.eta_crit = 0.05  # V - آستانهٔ نمونه برای شروع ناپایداری دندریت
+
     # ===== توابع موجود قبلی =====
 
     def j0_eff(self, j0r):
