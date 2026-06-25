@@ -10,3 +10,6 @@ scipy
 matplotlib
 python-dotenv
 pytest
+python-jose
+passlib[bcrypt]
+
