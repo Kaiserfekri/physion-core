@@ -3,7 +3,7 @@ import numpy as np
 class ElectrodeSPM:
     """
     Single Particle Model (SPM) electrode
-    Clean version for Physion Web Engine
+    Clean version for Physion Web Engine + SOC support
     """
 
     def __init__(self, cfg, is_anode=True):
@@ -22,13 +22,17 @@ class ElectrodeSPM:
         # Porosity
         self.eps = cfg.eps_anode if is_anode else cfg.eps_cathode
 
-        # Initial concentration
+        # Initial concentration profile
         self.cs = np.ones(20) * (cfg.cs0_cathode if not is_anode else 1000.0)
 
         # Spatial grid inside particle
         self.N = len(self.cs)
         self.r = np.linspace(0, self.R, self.N)
         self.dr = self.r[1] - self.r[0]
+
+        # ===== NEW: SOC state =====
+        # آند پر → SOC=1 ، کاتد خالی → SOC=0
+        self.soc = 1.0 if is_anode else 0.0
 
     def D_eff(self):
         """Temperature‑corrected diffusion coefficient"""
@@ -61,6 +65,12 @@ class ElectrodeSPM:
 
         self.cs = cs_new
 
+        # ===== NEW: SOC update =====
+        sign = -1.0 if self.is_anode else 1.0
+        soc_change = sign * j * dt * self.cfg.soc_scale
+        self.soc += soc_change
+        self.soc = max(0.0, min(1.0, self.soc))
+
     def overpotential(self, j):
         """
         Butler‑Volmer simplified overpotential
@@ -75,4 +85,5 @@ class ElectrodeSPM:
             "r": self.r.tolist(),
             "cs": self.cs.tolist(),
             "surface_cs": float(self.surface_concentration()),
+            "soc": float(self.soc),
         }
