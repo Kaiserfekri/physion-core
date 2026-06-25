@@ -9,7 +9,7 @@ from .resistance import ResistanceModel
 class FullCellModel:
     """
     Full cell simulation engine for Physion Web Engine
-    (revised: SOC + OCV(SOC) + full history)
+    (SOC + OCV(SOC) + j_lim + full history)
     """
 
     def __init__(self, cfg):
@@ -38,6 +38,8 @@ class FullCellModel:
             "eta_cathode": [],
             "soc_anode": [],
             "soc_cathode": [],
+            "j_lim_anode": [],
+            "j_lim_cathode": [],
         }
 
     def step(self, dt):
@@ -45,29 +47,26 @@ class FullCellModel:
         One simulation step
         """
 
-        # Applied current density (A/m^2 or normalized)
+        # Applied current density
         j = self.cfg.I_app()
 
         # Surface concentrations
         cs_a = self.anode.surface_concentration()
         cs_c = self.cathode.surface_concentration()
 
-        # Overpotentials (from ElectrodeSPM / Butler–Volmer)
+        # Overpotentials
         eta_a = self.anode.overpotential(j)
         eta_c = self.cathode.overpotential(-j)
 
-        # --- SEI update (only via TZIM, no fake sei_rate model) ---
+        # SEI update
         self.tzim.update_sei(j, dt)
         sei_avg = float(np.mean(self.tzim.sei))
 
-        # Update SEI resistance from SEI thickness
+        # Resistance update
         self.resistance.update_sei_resistance(sei_avg)
-
-        # Total resistance (ohmic + SEI + others)
         R_total = self.resistance.total()
 
-        # --- Cell voltage ---
-        # V_cell = (phi_c - phi_a) ≈ (U_c(SOC_c) - U_a(SOC_a)) + (eta_c - eta_a) - j * R_total
+        # OCV(SOC)
         if hasattr(self.cfg, "U_cathode") and hasattr(self.cfg, "U_anode"):
             U_a = self.cfg.U_anode(self.anode.soc)
             U_c = self.cfg.U_cathode(self.cathode.soc)
@@ -75,18 +74,22 @@ class FullCellModel:
         else:
             V_eq = 0.0
 
+        # Total voltage
         V = V_eq + (eta_c - eta_a) - j * R_total
 
-        # Update diffusion in electrodes (includes SOC update inside electrode)
+        # Diffusion + SOC update
         self.anode.update_diffusion(j, dt)
         self.cathode.update_diffusion(-j, dt)
 
-        # Update thermal model
-        # منبع گرما ~ j * (eta_a + eta_c) + losses
+        # Thermal update
         self.thermal.update(j, eta_a + eta_c, sei_avg, dt)
 
         # Time update
         self.t += dt
+
+        # ===== NEW: j_lim =====
+        j_lim_a = self.anode.j_lim()
+        j_lim_c = self.cathode.j_lim()
 
         # Save history
         self.history["t"].append(self.t)
@@ -100,6 +103,8 @@ class FullCellModel:
         self.history["eta_cathode"].append(float(eta_c))
         self.history["soc_anode"].append(float(self.anode.soc))
         self.history["soc_cathode"].append(float(self.cathode.soc))
+        self.history["j_lim_anode"].append(float(j_lim_a))
+        self.history["j_lim_cathode"].append(float(j_lim_c))
 
     def run(self):
         """
