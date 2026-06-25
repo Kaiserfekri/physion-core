@@ -1,83 +1,17 @@
 import json
 import redis
-import sqlite3
+from datetime import datetime
+
 from physion_core.cycle_engine import run_simulation
+from database import SessionLocal, SimulationResult, Job, JobResult
 
-# NEW: SQLAlchemy imports
-from database import SessionLocal, SimulationResult
-
-# Redis connection
 redis_client = redis.Redis(
     host="redis",
     port=6379,
     decode_responses=True
 )
 
-# SQLite DB file
-DB_FILE = "physion.db"
-
-# Create tables if not exist
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS jobs (
-            id TEXT PRIMARY KEY,
-            status TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            finished_at TEXT
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS job_results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_id TEXT,
-            result TEXT,
-            metrics TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-# Insert or update job
-def save_job_status(job_id, status):
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT OR REPLACE INTO jobs (id, status, finished_at)
-        VALUES (?, ?, CASE WHEN ?='done' THEN CURRENT_TIMESTAMP ELSE NULL END)
-    """, (job_id, status, status))
-
-    conn.commit()
-    conn.close()
-
-# Save simulation result
-def save_result(job_id, result):
-    conn = sqlite3.connect(DB_FILE)
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT INTO job_results (job_id, result, metrics)
-        VALUES (?, ?, ?)
-    """, (
-        job_id,
-        json.dumps(result),
-        json.dumps(result.get("metrics", {}))
-    ))
-
-    conn.commit()
-    conn.close()
-
-
-# Initialize DB
-init_db()
-
-print("Worker (SQLite version) started... waiting for jobs")
+print("Worker (ORM version) started... waiting for jobs")
 
 while True:
     job = redis_client.blpop("physion-jobs")
@@ -89,23 +23,46 @@ while True:
 
     print(f"Running job {job_id}")
 
+    session = SessionLocal()
     try:
-        save_job_status(job_id, "running")
+        # ایجاد یا به‌روزرسانی Job
+        job_obj = session.query(Job).filter(Job.id == job_id).first()
+        if not job_obj:
+            job_obj = Job(
+                id=job_id,
+                status="running",
+                created_at=datetime.utcnow(),
+                finished_at=None,
+            )
+            session.add(job_obj)
+        else:
+            job_obj.status = "running"
+            job_obj.finished_at = None
 
+        session.commit()
+
+        # اجرای شبیه‌سازی
         result = run_simulation(input_data)
 
-        save_result(job_id, result)
-        save_job_status(job_id, "done")
+        # ذخیرهٔ نتیجه
+        job_result = JobResult(
+            job_id=job_id,
+            result=json.dumps(result),
+            metrics=json.dumps(result.get("metrics", {})),
+            created_at=datetime.utcnow()
+        )
+        session.add(job_result)
+
+        # به‌روزرسانی وضعیت Job
+        job_obj.status = "done"
+        job_obj.finished_at = datetime.utcnow()
+        session.commit()
 
         print(f"Job {job_id} done")
 
-        # ======================================================
-        # NEW: Update SQLAlchemy simulation record
-        # ======================================================
-        session = SessionLocal()
-
+        # به‌روزرسانی SimulationResult مرتبط
         sim = session.query(SimulationResult).filter(
-            SimulationResult.name == f"job_{job_id}"
+            SimulationResult.job_id == job_id
         ).first()
 
         if sim:
@@ -114,9 +71,12 @@ while True:
             sim.max_temperature = max(result["T"])
             session.commit()
 
-        session.close()
-        # ======================================================
-
     except Exception as e:
-        save_job_status(job_id, "failed")
         print(f"Job {job_id} failed:", str(e))
+        job_obj = session.query(Job).filter(Job.id == job_id).first()
+        if job_obj:
+            job_obj.status = "failed"
+            job_obj.finished_at = datetime.utcnow()
+            session.commit()
+    finally:
+        session.close()
