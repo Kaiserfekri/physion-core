@@ -16,8 +16,8 @@ class ElectrodeSPM:
         # Diffusion coefficient
         self.D0 = cfg.D0_anode if is_anode else cfg.D0_cathode
 
-        # Reaction rate
-        self.j0 = cfg.j0_anode if is_anode else cfg.j0_cathode
+        # Reaction rate (base j0 از کانفیگ)
+        self.j0_base = cfg.j0_anode if is_anode else cfg.j0_cathode
 
         # Porosity
         self.eps = cfg.eps_anode if is_anode else cfg.eps_cathode
@@ -37,9 +37,17 @@ class ElectrodeSPM:
         """Temperature‑corrected diffusion coefficient"""
         return self.cfg.D0_eff(self.D0)
 
-    def j0_eff(self):
-        """Temperature‑corrected reaction rate"""
-        return self.cfg.j0_eff(self.j0)
+    def j0_eff(self, C_e_surface: float | None = None):
+        """
+        Temperature‑corrected reaction rate + کوپل الکترولیت:
+        j0_eff ∝ sqrt(C_e_surface / C_e0)
+        اگر C_e_surface داده نشود، همان j0_eff قبلی استفاده می‌شود.
+        """
+        j0 = self.cfg.j0_eff(self.j0_base)
+        if C_e_surface is not None and hasattr(self.cfg, "C_e0"):
+            scale = np.sqrt(max(C_e_surface, 1e-12) / max(self.cfg.C_e0, 1e-12))
+            j0 *= scale
+        return j0
 
     def surface_concentration(self):
         """Return concentration at particle surface"""
@@ -80,11 +88,12 @@ class ElectrodeSPM:
         self.soc += soc_change
         self.soc = max(0.0, min(1.0, self.soc))
 
-    def overpotential(self, j):
+    def overpotential(self, j, C_e_surface: float | None = None):
         """
         Butler‑Volmer simplified overpotential
+        با استفاده از j0_eff که به C_e_surface وابسته است.
         """
-        j0 = self.j0_eff()
+        j0 = self.j0_eff(C_e_surface)
         if abs(j) < 1e-12:
             return 0.0
         return (self.cfg.R_gas * self.cfg.T_cell / self.cfg.F) * np.arcsinh(j / (2*j0))
