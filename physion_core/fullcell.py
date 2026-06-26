@@ -5,15 +5,15 @@ from .electrode import ElectrodeSPM
 from .tzim import TZIMModel
 from .thermal import ThermalModel
 from .resistance import ResistanceModel
+from .electrolyte import Electrolyte1DModel  # 🔥 مدل جدید الکترولیت
 
-# ===== اضافه‌شده برای مرحله ۲ (Logging) =====
 logger = logging.getLogger("fullcell")
 
 
 class FullCellModel:
     """
     Full cell simulation engine for Physion Web Engine
-    (SOC + OCV(SOC) + j_lim + full history)
+    (SOC + OCV(SOC) + j_lim + TZIM + Electrolyte1D + full history)
     """
 
     def __init__(self, cfg):
@@ -25,6 +25,7 @@ class FullCellModel:
         self.tzim = TZIMModel(cfg)
         self.thermal = ThermalModel(cfg)
         self.resistance = ResistanceModel(cfg)
+        self.electrolyte = Electrolyte1DModel(cfg)  # 🔥 الکترولیت
 
         # Time
         self.t = 0.0
@@ -44,9 +45,15 @@ class FullCellModel:
             "soc_cathode": [],
             "j_lim_anode": [],
             "j_lim_cathode": [],
+            # 🔥 الکترولیت و چندفیزیک
+            "C_e_surface": [],
+            "hotspot_z_um": [],
+            "hotspot_j": [],
+            "DGI_max": [],
+            "CCD": [],
         }
 
-        logger.info("FullCellModel initialized.")
+        logger.info("FullCellModel initialized with Electrolyte1DModel.")
 
     def step(self, dt):
         """
@@ -64,7 +71,7 @@ class FullCellModel:
         eta_a = self.anode.overpotential(j)
         eta_c = self.cathode.overpotential(-j)
 
-        # SEI update
+        # SEI update (TZIM)
         self.tzim.update_sei(j, dt)
         sei_avg = float(np.mean(self.tzim.sei))
 
@@ -83,6 +90,13 @@ class FullCellModel:
         # Total voltage
         V = V_eq + (eta_c - eta_a) - j * R_total
 
+        # 🔥 الکترولیت: یک گام ساده
+        # از ولتاژ فعلی به‌عنوان V_app استفاده می‌کنیم
+        self.electrolyte.step(j_app=j, dt=dt, V_app=V)
+
+        # سطح الکترولیت در سمت آند
+        C_e_surface = float(self.electrolyte.C[0])
+
         # Diffusion + SOC update
         self.anode.update_diffusion(j, dt)
         self.cathode.update_diffusion(-j, dt)
@@ -97,10 +111,16 @@ class FullCellModel:
         j_lim_a = self.anode.j_lim()
         j_lim_c = self.cathode.j_lim()
 
-        # ===== Logging (مرحله ۲) =====
+        # ===== Electrolyte analytics =====
+        hotspot_z_um, hotspot_j = self.electrolyte.hotspot()
+        DGI = self.electrolyte.DGI_profile()
+        DGI_max = float(np.max(DGI))
+        CCD_now = float(self.electrolyte.CCD())
+
         logger.debug(
             f"t={self.t:.2f}, V={V:.3f}, eta_a={eta_a:.4f}, eta_c={eta_c:.4f}, "
-            f"j_lim_a={j_lim_a:.4f}, j_lim_c={j_lim_c:.4f}"
+            f"j_lim_a={j_lim_a:.4f}, j_lim_c={j_lim_c:.4f}, "
+            f"C_e_surf={C_e_surface:.2f}, DGI_max={DGI_max:.3f}, CCD={CCD_now:.2f}"
         )
 
         # Save history
@@ -117,6 +137,13 @@ class FullCellModel:
         self.history["soc_cathode"].append(float(self.cathode.soc))
         self.history["j_lim_anode"].append(float(j_lim_a))
         self.history["j_lim_cathode"].append(float(j_lim_c))
+
+        # 🔥 ذخیرهٔ الکترولیت و چندفیزیک
+        self.history["C_e_surface"].append(C_e_surface)
+        self.history["hotspot_z_um"].append(hotspot_z_um)
+        self.history["hotspot_j"].append(hotspot_j)
+        self.history["DGI_max"].append(DGI_max)
+        self.history["CCD"].append(CCD_now)
 
     def run(self):
         """
