@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
@@ -17,7 +18,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-SECRET_KEY = "CHANGE_THIS_TO_A_SECURE_KEY"
+# ==========================
+# SECURITY CONFIG
+# ==========================
+SECRET_KEY = os.getenv("PHYSION_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("PHYSION_SECRET_KEY is not set")
+
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
@@ -25,13 +32,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 app.include_router(auth_router)
 
 
+# ==========================
+# REDIS STREAM
+# ==========================
 redis_client = redis.Redis(
     host="redis",
     port=6379,
     decode_responses=True
 )
 
+STREAM_KEY = "physion-jobs-stream"
 
+
+# ==========================
+# AUTH HELPERS
+# ==========================
 def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=401,
@@ -66,20 +81,25 @@ def require_admin(current_user = Depends(get_current_user)):
     return current_user
 
 
+# ==========================
+# INPUT MODEL
+# ==========================
 class SimulationInput(BaseModel):
     C_rate: float = 1.0
     n_cycles: int = 1
     T_cell: float = 298.15
 
 
+# ==========================
+# SIMULATE (Atomic + Outbox)
+# ==========================
 @app.post("/simulate")
 def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
     job_id = str(uuid.uuid4())
-    job_data = {
+    payload = json.dumps({
         "job_id": job_id,
         "input_data": input.dict()
-    }
-    payload = json.dumps(job_data)
+    })
 
     session = SessionLocal()
     try:
@@ -110,16 +130,19 @@ def simulate(input: SimulationInput, current_user = Depends(get_current_user)):
                 processed=False
             )
             session.add(outbox)
+
     except Exception:
         session.close()
         raise HTTPException(status_code=500, detail="Failed to create job")
     finally:
         session.close()
 
-    # worker خودش outbox را به صف Redis می‌فرستد
     return {"status": "queued", "job_id": job_id}
 
 
+# ==========================
+# RESULT
+# ==========================
 @app.get("/result/{job_id}")
 def get_result(job_id: str, current_user = Depends(get_current_user)):
     session = SessionLocal()
@@ -136,8 +159,7 @@ def get_result(job_id: str, current_user = Depends(get_current_user)):
             return {"job_id": job_id, "status": job.state}
 
         if job.state == "dead":
-            err = job.last_error
-            return {"job_id": job_id, "status": "dead", "error": err}
+            return {"job_id": job_id, "status": "dead", "error": job.last_error}
 
         job_result = session.execute(
             select(JobResult).where(JobResult.job_id == job_id).order_by(JobResult.id.desc())
@@ -151,86 +173,6 @@ def get_result(job_id: str, current_user = Depends(get_current_user)):
             "status": "completed",
             "result": json.loads(job_result.result),
             "metrics": json.loads(job_result.metrics)
-        }
-    finally:
-        session.close()
-
-
-@app.get("/admin/simulations")
-def admin_list_simulations(current_user = Depends(require_admin)):
-    session = SessionLocal()
-    try:
-        sims = session.execute(
-            select(SimulationResult)
-        ).scalars().all()
-
-        return [
-            {
-                "id": s.id,
-                "name": s.name,
-                "steps": s.steps,
-                "avg_voltage": s.avg_voltage,
-                "max_temperature": s.max_temperature,
-                "user_id": s.user_id,
-                "job_id": s.job_id
-            }
-            for s in sims
-        ]
-    finally:
-        session.close()
-
-
-@app.get("/my/simulations")
-def my_simulations(current_user = Depends(get_current_user)):
-    session = SessionLocal()
-    try:
-        sims = session.execute(
-            select(SimulationResult).where(SimulationResult.user_id == current_user.id)
-        ).scalars().all()
-
-        return [
-            {
-                "id": s.id,
-                "name": s.name,
-                "steps": s.steps,
-                "avg_voltage": s.avg_voltage,
-                "max_temperature": s.max_temperature,
-                "job_id": s.job_id
-            }
-            for s in sims
-        ]
-    finally:
-        session.close()
-
-
-@app.get("/admin/metrics")
-def admin_metrics(current_user = Depends(require_admin)):
-    session = SessionLocal()
-    try:
-        total_jobs = session.execute(select(Job)).scalars().count()
-        queued = session.execute(
-            select(Job).where(Job.state == "queued")
-        ).scalars().count()
-        running = session.execute(
-            select(Job).where(Job.state == "running")
-        ).scalars().count()
-        retrying = session.execute(
-            select(Job).where(Job.state == "retrying")
-        ).scalars().count()
-        dead = session.execute(
-            select(Job).where(Job.state == "dead")
-        ).scalars().count()
-        completed = session.execute(
-            select(Job).where(Job.state == "completed")
-        ).scalars().count()
-
-        return {
-            "total_jobs": total_jobs,
-            "queued": queued,
-            "running": running,
-            "retrying": retrying,
-            "dead": dead,
-            "completed": completed
         }
     finally:
         session.close()
