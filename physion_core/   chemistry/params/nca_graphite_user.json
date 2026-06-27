@@ -1,0 +1,16 @@
+{
+  "name": "NCA/Graphite – User OCV",
+  "U_anode": "U_anode_graphite",
+  "U_cathode": "U_cathode_nca_user",
+  "dU_anode_dT": "dU_anode_dT_graphite",
+  "dU_cathode_dT": "dU_cathode_dT_nca",
+  "capacity_anode": 372.0,
+  "capacity_cathode": 190.0,
+  "D_anode": "D_anode_graphite",
+  "D_cathode": "D_cathode_nca",
+  "kinetics_anode": { "i0_ref": 1.0, "alpha_a": 0.5, "alpha_c": 0.5 },
+  "kinetics_cathode": { "i0_ref": 1.3, "alpha_a": 0.5, "alpha_c": 0.5 },
+  "electrolyte": { "D_e": 1e-10, "t_plus": 0.4 },
+  "mechanical": { "E_modulus": 950000000, "alpha_vol": 0.00001, "beta_soc": 0.02, "swelling_coeff": 0.022 },
+  "degradation": { "k_LLI": 0.0, "k_LAM": 0.0 }
+}
