@@ -1,0 +1,23 @@
+from .parameter_set import ParameterSet
+from . import functions as f
+
+def load_nmc_graphite_params(json_path):
+    raw = ParameterSet.from_json(json_path)
+
+    data = {
+        "U_anode": getattr(f, raw["U_anode"]),
+        "U_cathode": getattr(f, raw["U_cathode"]),
+        "dU_anode_dT": getattr(f, raw["dU_anode_dT"]),
+        "dU_cathode_dT": getattr(f, raw["dU_cathode_dT"]),
+        "capacity_anode": raw["capacity_anode"],
+        "capacity_cathode": raw["capacity_cathode"],
+        "D_anode": getattr(f, raw["D_anode"]),
+        "D_cathode": getattr(f, raw["D_cathode"]),
+        "kinetics_anode": raw["kinetics_anode"],
+        "kinetics_cathode": raw["kinetics_cathode"],
+        "electrolyte": raw["electrolyte"],
+        "mechanical": raw["mechanical"],
+        "degradation": raw["degradation"]
+    }
+
+    return ParameterSet(data)
