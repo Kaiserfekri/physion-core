@@ -7,19 +7,33 @@ from physion_core.chemistry.parameter_loader import (
     load_nmc_graphite_params,
     load_lfp_graphite_params,
     load_lco_graphite_params,
-    load_nca_graphite_params
+    load_nca_graphite_params,
 )
 
 from physion_core.fullcell.fullcell_model import FullCellModel
 
 
 class ModelPackConfig:
-    def __init__(self, chemistry_name, params_path):
+    """
+    تنظیمات سطح بالا برای انتخاب شیمی و مسیر JSON.
+    """
+
+    def __init__(self,
+                 chemistry_name: str = "LFP_GRAPHITE_V1",
+                 params_path: str = "params/lfp_graphite_v1.json"):
         self.chemistry_name = chemistry_name
         self.params_path = params_path
 
+        # بعداً می‌توانی این‌ها را قابل انتخاب کنی
+        self.use_electrolyte_1d = True
+        self.use_tzim = True
+        self.use_thermal = True
 
-def build_chemistry(cfg_pack):
+
+def build_chemistry(cfg_pack: ModelPackConfig):
+    """
+    ساخت آبجکت شیمی بر اساس نام و JSON.
+    """
     name = cfg_pack.chemistry_name.upper()
 
     if name == "NMC_GRAPHITE_V1":
@@ -38,5 +52,8 @@ def build_chemistry(cfg_pack):
 
 
 def build_fullcell(cfg):
+    """
+    اتصال شیمی به cfg و ساخت FullCellModel آمادهٔ اجرا.
+    """
     cfg.chemistry = build_chemistry(cfg.model_pack)
     return FullCellModel(cfg)
