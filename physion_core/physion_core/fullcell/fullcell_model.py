@@ -1,100 +1,105 @@
+import numpy as np
+
 from physion_core.fullcell.physics_state import PhysicsState
-
-
-class ReactionModel:
-    def __init__(self, chemistry):
-        self.chemistry = chemistry
-
-    def compute_flux(self, state: PhysicsState):
-        # فعلاً جریان را همان ورودی می‌گیریم
-        return state.current_density_A_m2
-
-    def compute_heat(self, state: PhysicsState):
-        # اینجا فقط از اورپتانسیل‌های ذخیره‌شده در state استفاده می‌کنیم
-        # بدون دوباره شمردن اختلاف OCV بین آند و کاتد
-        eta_an = state.overpotential_anode_V
-        eta_ca = state.overpotential_cathode_V
-
-        # مدل ساده برناردی: q = J * (η_an + η_ca)
-        return state.current_density_A_m2 * (eta_an + eta_ca)
-
-
-class MechanicalModel:
-    def __init__(self, chemistry):
-        self.chemistry = chemistry
-
-    def compute_stress(self, state: PhysicsState):
-        # فعلاً اسکلت
-        return 0.0
-
-
-class DegradationModel:
-    def __init__(self, chemistry):
-        self.chemistry = chemistry
-
-    def update(self, state: PhysicsState, dt: float):
-        # فعلاً اسکلت
-        pass
+from physion_core.physics.reaction_model import ReactionModel
+from physion_core.physics.electrode_spm import ElectrodeSPM
+from physion_core.mechanics import MechanicalModel
+from physion_core.degradation import DegradationModel
 
 
 class FullCellModel:
+    """
+    Physion V30 – Hybrid:
+    - SOC مینیمال مبتنی بر capacity از chemistry (نسخه قبلی)
+    - SPM diffusion + SOC داخلی ذرات (نسخه جدید)
+    - Butler–Volmer + OCV
+    - مکانیک + تخریب اسکلت‌وار
+    """
+
     def __init__(self, cfg):
         self.cfg = cfg
         self.chemistry = cfg.chemistry
         self.state = PhysicsState()
 
         # ماژول‌های فیزیکی
-        self.reaction = ReactionModel(self.chemistry)
+        self.reaction = ReactionModel(cfg)
+        self.anode = ElectrodeSPM(cfg, is_anode=True)
+        self.cathode = ElectrodeSPM(cfg, is_anode=False)
         self.mechanics = MechanicalModel(self.chemistry)
         self.degradation = DegradationModel(self.chemistry)
 
-    def _update_soc(self, dt: float):
+    # ---------------------------------------------------------
+    # SOC مینیمال بر اساس capacity (نسخه قبلی)
+    # ---------------------------------------------------------
+    def _update_soc_capacity_based(self, dt: float):
         """
-        به‌روزرسانی سادهٔ SOC بر اساس جریان.
-        این یک مدل مینیمال است و واحدها را ایده‌آل فرض می‌کند.
+        به‌روزرسانی سادهٔ SOC بر اساس جریان و ظرفیت شیمی.
+        این همان مدل مینیمال نسخهٔ قبلی است.
         """
         J = self.state.current_density_A_m2  # A/m^2
 
-        # ظرفیت‌ها (فرضی، بر حسب Ah/kg یا مشابه) از شیمی
         cap_an = self.chemistry.capacity_anode()
         cap_ca = self.chemistry.capacity_cathode()
 
         if cap_an > 0:
-            # آند: شارژ شدن با جریان منفی، دشارژ با جریان مثبت (علامت ساده)
             d_soc_an = - J * dt / (3600.0 * cap_an)
             self.state.soc_anode += d_soc_an
 
         if cap_ca > 0:
-            # کاتد: برعکس آند
             d_soc_ca = J * dt / (3600.0 * cap_ca)
             self.state.soc_cathode += d_soc_ca
 
-        # می‌توانی بعداً clamp هم اضافه کنی، فعلاً فقط دینامیک را اضافه کردیم
+    # ---------------------------------------------------------
+    # SOC + diffusion مبتنی بر SPM (نسخه جدید)
+    # ---------------------------------------------------------
+    def _update_electrodes_spm(self, j, dt):
+        """
+        به‌روزرسانی SPM داخل ذرات + SOC داخلی
+        """
+        self.anode.update_diffusion(j, dt)
+        self.cathode.update_diffusion(j, dt)
 
+        # می‌توانی انتخاب کنی که SOC کلی را از SPM بگیری یا از capacity.
+        # فعلاً یک میانگین ساده می‌گیریم:
+        self.state.soc_anode = 0.5 * (self.state.soc_anode + self.anode.soc)
+        self.state.soc_cathode = 0.5 * (self.state.soc_cathode + self.cathode.soc)
+
+    # ---------------------------------------------------------
+    # Main step
+    # ---------------------------------------------------------
     def step(self, dt: float, current_density_A_m2: float):
         # زمان
         self.state.time_s += dt
 
         # جریان
-        self.state.current_density_A_m2 = current_density_A_m2
+        j = current_density_A_m2
+        self.state.current_density_A_m2 = j
 
-        # به‌روزرسانی SOC (دینامیک ساده)
-        self._update_soc(dt)
+        # ۱) SOC مینیمال مبتنی بر capacity (نسخه قبلی)
+        self._update_soc_capacity_based(dt)
 
-        # واکنش
-        j = self.reaction.compute_flux(self.state)
-        self.state.reaction_rate_A_m2 = j
+        # ۲) SPM diffusion + SOC داخلی (نسخه جدید)
+        self._update_electrodes_spm(j, dt)
 
-        # گرما
-        q_dot = self.reaction.compute_heat(self.state)
+        # ۳) overpotential + BV + flux
+        eta, V_eq = self.reaction.compute_overpotential(self.state)
+        self.state.overpotential_cell_V = eta
+        self.state.equilibrium_voltage_V = V_eq
+
+        j_bv = self.reaction.compute_flux(self.state, eta)
+        self.state.reaction_rate_A_m2 = j_bv
+
+        # ۴) گرما (برناردی ساده‌شده)
+        q_dot = self.reaction.compute_heat(self.state, eta, V_eq)
         self.state.heat_source_W_m3 = q_dot
 
-        # تنش
+        # ۵) تنش مکانیکی (اسکلت قبلی)
         self.state.stress_Pa = self.mechanics.compute_stress(self.state)
 
-        # تخریب
+        # ۶) تخریب (اسکلت قبلی)
         self.degradation.update(self.state, dt)
 
+    # ---------------------------------------------------------
     def summary(self):
         return {
             "chemistry": type(self.chemistry).__name__,
@@ -102,6 +107,11 @@ class FullCellModel:
             "capacity_cathode": self.chemistry.capacity_cathode(),
             "time_s": self.state.time_s,
             "current_density_A_m2": self.state.current_density_A_m2,
+            "soc_anode": self.state.soc_anode,
+            "soc_cathode": self.state.soc_cathode,
+            "equilibrium_voltage_V": getattr(self.state, "equilibrium_voltage_V", None),
+            "overpotential_cell_V": getattr(self.state, "overpotential_cell_V", None),
+            "reaction_rate_A_m2": self.state.reaction_rate_A_m2,
             "heat_source_W_m3": self.state.heat_source_W_m3,
+            "stress_Pa": getattr(self.state, "stress_Pa", None),
         }
-
