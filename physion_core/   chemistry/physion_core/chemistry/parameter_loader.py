@@ -1,10 +1,9 @@
 from .parameter_set import ParameterSet
 from . import functions as f
 
-def load_nmc_graphite_params(json_path):
-    raw = ParameterSet.from_json(json_path)
 
-    data = {
+def _map_params(raw):
+    return ParameterSet({
         "U_anode": getattr(f, raw["U_anode"]),
         "U_cathode": getattr(f, raw["U_cathode"]),
         "dU_anode_dT": getattr(f, raw["dU_anode_dT"]),
@@ -18,6 +17,17 @@ def load_nmc_graphite_params(json_path):
         "electrolyte": raw["electrolyte"],
         "mechanical": raw["mechanical"],
         "degradation": raw["degradation"]
-    }
+    })
 
-    return ParameterSet(data)
+
+def load_nmc_graphite_params(path):
+    return _map_params(ParameterSet.from_json(path))
+
+def load_lfp_graphite_params(path):
+    return _map_params(ParameterSet.from_json(path))
+
+def load_lco_graphite_params(path):
+    return _map_params(ParameterSet.from_json(path))
+
+def load_nca_graphite_params(path):
+    return _map_params(ParameterSet.from_json(path))
