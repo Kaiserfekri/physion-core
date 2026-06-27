@@ -1,11 +1,7 @@
 from .base import BaseChemistry
 
-
 class LFPGraphiteChemistry(BaseChemistry):
     def __init__(self, params):
-        """
-        params: یک ParameterSet که از parameter_loader آمده.
-        """
         self.p = params
 
     def U_anode(self, soc, T_K):
