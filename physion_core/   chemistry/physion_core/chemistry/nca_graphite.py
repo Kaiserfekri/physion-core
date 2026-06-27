@@ -1,6 +1,10 @@
 from .base import BaseChemistry
 
 class NCAGraphiteChemistry(BaseChemistry):
+    """
+    شیمی NCA/Graphite با پارامترهای خوانده‌شده از JSON.
+    """
+
     def __init__(self, params):
         self.p = params
 
