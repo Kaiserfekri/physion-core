@@ -1,6 +1,10 @@
 from .base import BaseChemistry
 
 class LCOGraphiteChemistry(BaseChemistry):
+    """
+    شیمی LCO/Graphite با پارامترهای خوانده‌شده از JSON.
+    """
+
     def __init__(self, params):
         self.p = params
 
