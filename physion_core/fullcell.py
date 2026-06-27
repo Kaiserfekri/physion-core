@@ -5,7 +5,7 @@ from .electrode import ElectrodeSPM
 from .tzim import TZIMModel
 from .thermal import ThermalModel
 from .resistance import ResistanceModel
-from .electrolyte import Electrolyte1DModel  # مدل الکترولیت
+from .electrolyte import Electrolyte1DModel
 
 logger = logging.getLogger("fullcell")
 
@@ -13,12 +13,12 @@ logger = logging.getLogger("fullcell")
 class FullCellModel:
     """
     Full cell simulation engine for Physion Web Engine
-    (SOC + OCV(SOC) + j_lim + TZIM + Electrolyte1D + full history
-     با کوپل واقعی الکترولیت روی j0 و R_electrolyte)
+    Now using Chemistry Pack for all OCV and material properties.
     """
 
     def __init__(self, cfg):
         self.cfg = cfg
+        self.chemistry = cfg.chemistry   # ← اضافه شد
 
         # Sub‑models
         self.anode = ElectrodeSPM(cfg, is_anode=True)
@@ -53,7 +53,7 @@ class FullCellModel:
             "CCD": [],
         }
 
-        logger.info("FullCellModel initialized with Electrolyte coupling.")
+        logger.info("FullCellModel initialized with Chemistry Pack + Electrolyte coupling.")
 
     def step(self, dt):
         """
@@ -67,39 +67,39 @@ class FullCellModel:
         self.tzim.update_sei(j, dt)
         sei_avg = float(np.mean(self.tzim.sei))
 
-        # الکترولیت: یک گام ساده با ولتاژ قبلی تخمینی
-        # ابتدا ولتاژ تخمینی بدون کوپل الکترولیت:
+        # Electrolyte step (needs a voltage guess)
         V_guess = 0.0
-        if hasattr(self.cfg, "U_cathode") and hasattr(self.cfg, "U_anode"):
-            U_a_guess = self.cfg.U_anode(self.anode.soc)
-            U_c_guess = self.cfg.U_cathode(self.cathode.soc)
+        if self.chemistry is not None:
+            U_a_guess = self.chemistry.U_anode(self.anode.soc, self.thermal.T)
+            U_c_guess = self.chemistry.U_cathode(self.cathode.soc, self.thermal.T)
             V_guess = U_c_guess - U_a_guess
+
         self.electrolyte.step(j_app=j, dt=dt, V_app=V_guess)
 
-        # سطح الکترولیت در سمت آند
+        # Electrolyte surface concentration
         C_e_surface = float(self.electrolyte.C[0])
 
         # Surface concentrations
         cs_a = self.anode.surface_concentration()
         cs_c = self.cathode.surface_concentration()
 
-        # Overpotentials با کوپل الکترولیت
+        # Overpotentials with electrolyte coupling
         eta_a = self.anode.overpotential(j, C_e_surface)
         eta_c = self.cathode.overpotential(-j, C_e_surface)
 
-        # Resistance update (SEI)
+        # Resistance update
         self.resistance.update_sei_resistance(sei_avg)
         R_total = self.resistance.total(C_e_surface)
 
-        # OCV(SOC)
-        if hasattr(self.cfg, "U_cathode") and hasattr(self.cfg, "U_anode"):
-            U_a = self.cfg.U_anode(self.anode.soc)
-            U_c = self.cfg.U_cathode(self.cathode.soc)
+        # OCV(SOC) from Chemistry Pack
+        if self.chemistry is not None:
+            U_a = self.chemistry.U_anode(self.anode.soc, self.thermal.T)
+            U_c = self.chemistry.U_cathode(self.cathode.soc, self.thermal.T)
             V_eq = U_c - U_a
         else:
             V_eq = 0.0
 
-        # Total voltage با در نظر گرفتن R_total و اورپتانسیل‌ها
+        # Total voltage
         V = V_eq + (eta_c - eta_a) - j * R_total
 
         # Diffusion + SOC update
@@ -122,12 +122,6 @@ class FullCellModel:
         DGI_max = float(np.max(DGI))
         CCD_now = float(self.electrolyte.CCD())
 
-        logger.debug(
-            f"t={self.t:.2f}, V={V:.3f}, eta_a={eta_a:.4f}, eta_c={eta_c:.4f}, "
-            f"j_lim_a={j_lim_a:.4f}, j_lim_c={j_lim_c:.4f}, "
-            f"C_e_surf={C_e_surface:.2f}, DGI_max={DGI_max:.3f}, CCD={CCD_now:.2f}"
-        )
-
         # Save history
         self.history["t"].append(self.t)
         self.history["V"].append(float(V))
@@ -142,8 +136,6 @@ class FullCellModel:
         self.history["soc_cathode"].append(float(self.cathode.soc))
         self.history["j_lim_anode"].append(float(j_lim_a))
         self.history["j_lim_cathode"].append(float(j_lim_c))
-
-        # Electrolyte + multiphysics
         self.history["C_e_surface"].append(C_e_surface)
         self.history["hotspot_z_um"].append(hotspot_z_um)
         self.history["hotspot_j"].append(hotspot_j)
