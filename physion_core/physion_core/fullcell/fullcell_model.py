@@ -9,11 +9,11 @@ from physion_core.degradation import DegradationModel
 
 class FullCellModel:
     """
-    Physion V30 – Hybrid:
+    Physion V30 – Hybrid FullCellModel
     - SOC مینیمال مبتنی بر capacity از chemistry (نسخه قبلی)
     - SPM diffusion + SOC داخلی ذرات (نسخه جدید)
     - Butler–Volmer + OCV
-    - مکانیک + تخریب اسکلت‌وار
+    - مکانیک + تخریب
     """
 
     def __init__(self, cfg):
@@ -21,22 +21,14 @@ class FullCellModel:
         self.chemistry = cfg.chemistry
         self.state = PhysicsState()
 
-        # ماژول‌های فیزیکی
         self.reaction = ReactionModel(cfg)
         self.anode = ElectrodeSPM(cfg, is_anode=True)
         self.cathode = ElectrodeSPM(cfg, is_anode=False)
         self.mechanics = MechanicalModel(self.chemistry)
         self.degradation = DegradationModel(self.chemistry)
 
-    # ---------------------------------------------------------
-    # SOC مینیمال بر اساس capacity (نسخه قبلی)
-    # ---------------------------------------------------------
     def _update_soc_capacity_based(self, dt: float):
-        """
-        به‌روزرسانی سادهٔ SOC بر اساس جریان و ظرفیت شیمی.
-        این همان مدل مینیمال نسخهٔ قبلی است.
-        """
-        J = self.state.current_density_A_m2  # A/m^2
+        J = self.state.current_density_A_m2
 
         cap_an = self.chemistry.capacity_anode()
         cap_ca = self.chemistry.capacity_cathode()
@@ -49,57 +41,40 @@ class FullCellModel:
             d_soc_ca = J * dt / (3600.0 * cap_ca)
             self.state.soc_cathode += d_soc_ca
 
-    # ---------------------------------------------------------
-    # SOC + diffusion مبتنی بر SPM (نسخه جدید)
-    # ---------------------------------------------------------
     def _update_electrodes_spm(self, j, dt):
-        """
-        به‌روزرسانی SPM داخل ذرات + SOC داخلی
-        """
         self.anode.update_diffusion(j, dt)
         self.cathode.update_diffusion(j, dt)
 
-        # می‌توانی انتخاب کنی که SOC کلی را از SPM بگیری یا از capacity.
-        # فعلاً یک میانگین ساده می‌گیریم:
         self.state.soc_anode = 0.5 * (self.state.soc_anode + self.anode.soc)
         self.state.soc_cathode = 0.5 * (self.state.soc_cathode + self.cathode.soc)
 
-    # ---------------------------------------------------------
-    # Main step
-    # ---------------------------------------------------------
     def step(self, dt: float, current_density_A_m2: float):
-        # زمان
         self.state.time_s += dt
 
-        # جریان
         j = current_density_A_m2
         self.state.current_density_A_m2 = j
 
-        # ۱) SOC مینیمال مبتنی بر capacity (نسخه قبلی)
+        # SOC مینیمال
         self._update_soc_capacity_based(dt)
 
-        # ۲) SPM diffusion + SOC داخلی (نسخه جدید)
+        # SPM
         self._update_electrodes_spm(j, dt)
 
-        # ۳) overpotential + BV + flux
-        eta, V_eq = self.reaction.compute_overpotential(self.state)
-        self.state.overpotential_cell_V = eta
-        self.state.equilibrium_voltage_V = V_eq
-
-        j_bv = self.reaction.compute_flux(self.state, eta)
+        # واکنش + BV
+        eta_cell, V_eq = self.reaction.compute_overpotential_cell(self.state)
+        j_bv = self.reaction.compute_flux_bv(self.state, eta_cell)
         self.state.reaction_rate_A_m2 = j_bv
 
-        # ۴) گرما (برناردی ساده‌شده)
-        q_dot = self.reaction.compute_heat(self.state, eta, V_eq)
+        # گرما (نسخه جدید برناردی)
+        q_dot = self.reaction.compute_heat_bernardi(self.state, V_eq)
         self.state.heat_source_W_m3 = q_dot
 
-        # ۵) تنش مکانیکی (اسکلت قبلی)
+        # تنش
         self.state.stress_Pa = self.mechanics.compute_stress(self.state)
 
-        # ۶) تخریب (اسکلت قبلی)
+        # تخریب
         self.degradation.update(self.state, dt)
 
-    # ---------------------------------------------------------
     def summary(self):
         return {
             "chemistry": type(self.chemistry).__name__,
@@ -115,3 +90,4 @@ class FullCellModel:
             "heat_source_W_m3": self.state.heat_source_W_m3,
             "stress_Pa": getattr(self.state, "stress_Pa", None),
         }
+
