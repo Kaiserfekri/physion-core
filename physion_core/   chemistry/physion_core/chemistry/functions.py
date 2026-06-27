@@ -6,10 +6,10 @@ from scipy.interpolate import CubicSpline
 # ============================================================
 
 _user_ocv_data = {
-    "lfp":  {"soc": None, "U": None, "spline": None},
-    "nmc":  {"soc": None, "U": None, "spline": None},
-    "lco":  {"soc": None, "U": None, "spline": None},
-    "nca":  {"soc": None, "U": None, "spline": None},
+    "lfp": {"soc": None, "U": None, "spline": None},
+    "nmc": {"soc": None, "U": None, "spline": None},
+    "lco": {"soc": None, "U": None, "spline": None},
+    "nca": {"soc": None, "U": None, "spline": None},
 }
 
 # ============================================================
@@ -31,7 +31,7 @@ def set_user_ocv_nmc(soc_array, U_array):
     _user_ocv_data["nmc"]["spline"] = CubicSpline(soc, U)
 
 def set_user_ocv_lco(soc_array, U_array):
-    soc = np.array(s_array := soc_array, dtype=float)
+    soc = np.array(soc_array, dtype=float)
     U = np.array(U_array, dtype=float)
     _user_ocv_data["lco"]["soc"] = soc
     _user_ocv_data["lco"]["U"] = U
