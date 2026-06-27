@@ -10,15 +10,12 @@ class ReactionModel:
         return state.current_density_A_m2
 
     def compute_heat(self, state: PhysicsState):
-        # استفاده از شیمی برای محاسبه OCV
-        U_an = self.chemistry.U_anode(state.soc_anode, state.temperature_K)
-        U_ca = self.chemistry.U_cathode(state.soc_cathode, state.temperature_K)
+        # اینجا فقط از اورپتانسیل‌های ذخیره‌شده در state استفاده می‌کنیم
+        # بدون دوباره شمردن اختلاف OCV بین آند و کاتد
+        eta_an = state.overpotential_anode_V
+        eta_ca = state.overpotential_cathode_V
 
-        # اورپتانسیل واقعی
-        eta_an = state.overpotential_anode_V + (U_an - U_ca)
-        eta_ca = state.overpotential_cathode_V + (U_ca - U_an)
-
-        # مدل ساده برناردی
+        # مدل ساده برناردی: q = J * (η_an + η_ca)
         return state.current_density_A_m2 * (eta_an + eta_ca)
 
 
@@ -51,12 +48,38 @@ class FullCellModel:
         self.mechanics = MechanicalModel(self.chemistry)
         self.degradation = DegradationModel(self.chemistry)
 
+    def _update_soc(self, dt: float):
+        """
+        به‌روزرسانی سادهٔ SOC بر اساس جریان.
+        این یک مدل مینیمال است و واحدها را ایده‌آل فرض می‌کند.
+        """
+        J = self.state.current_density_A_m2  # A/m^2
+
+        # ظرفیت‌ها (فرضی، بر حسب Ah/kg یا مشابه) از شیمی
+        cap_an = self.chemistry.capacity_anode()
+        cap_ca = self.chemistry.capacity_cathode()
+
+        if cap_an > 0:
+            # آند: شارژ شدن با جریان منفی، دشارژ با جریان مثبت (علامت ساده)
+            d_soc_an = - J * dt / (3600.0 * cap_an)
+            self.state.soc_anode += d_soc_an
+
+        if cap_ca > 0:
+            # کاتد: برعکس آند
+            d_soc_ca = J * dt / (3600.0 * cap_ca)
+            self.state.soc_cathode += d_soc_ca
+
+        # می‌توانی بعداً clamp هم اضافه کنی، فعلاً فقط دینامیک را اضافه کردیم
+
     def step(self, dt: float, current_density_A_m2: float):
         # زمان
         self.state.time_s += dt
 
         # جریان
         self.state.current_density_A_m2 = current_density_A_m2
+
+        # به‌روزرسانی SOC (دینامیک ساده)
+        self._update_soc(dt)
 
         # واکنش
         j = self.reaction.compute_flux(self.state)
@@ -81,3 +104,4 @@ class FullCellModel:
             "current_density_A_m2": self.state.current_density_A_m2,
             "heat_source_W_m3": self.state.heat_source_W_m3,
         }
+
