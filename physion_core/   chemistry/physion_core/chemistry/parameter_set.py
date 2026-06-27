@@ -1,7 +1,10 @@
 import json
 
+
 class ParameterSet:
-    """Loads chemistry parameters from JSON, DB, or user input."""
+    """
+    نگه‌دارندهٔ پارامترهای شیمی (از JSON، DB، یا ورودی کاربر).
+    """
 
     def __init__(self, data):
         self.data = data
