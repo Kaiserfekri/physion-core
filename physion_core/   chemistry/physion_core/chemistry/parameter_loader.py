@@ -1,12 +1,7 @@
 from .parameter_set import ParameterSet
 from . import functions as f
 
-
 def _map_params(raw):
-    """
-    raw: دیکشنری خوانده‌شده از JSON شیمی.
-    این تابع آن را به ParameterSet با توابع واقعی تبدیل می‌کند.
-    """
     return ParameterSet({
         "U_anode": getattr(f, raw["U_anode"]),
         "U_cathode": getattr(f, raw["U_cathode"]),
@@ -20,27 +15,20 @@ def _map_params(raw):
         "kinetics_cathode": raw["kinetics_cathode"],
         "electrolyte": raw["electrolyte"],
         "mechanical": raw["mechanical"],
-        "degradation": raw["degradation"]
+        "degradation": raw["degradation"],
     })
 
-
 def load_lfp_graphite_params(path):
-    """
-    لود کردن JSON لFP/Graphite و تبدیل به ParameterSet.
-    """
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
-
 
 def load_nmc_graphite_params(path):
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
 
-
 def load_lco_graphite_params(path):
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
-
 
 def load_nca_graphite_params(path):
     raw_ps = ParameterSet.from_json(path)
