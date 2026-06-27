@@ -31,7 +31,7 @@ def set_user_ocv_nmc(soc_array, U_array):
     _user_ocv_data["nmc"]["spline"] = CubicSpline(soc, U)
 
 def set_user_ocv_lco(soc_array, U_array):
-    soc = np.array(soc_array, dtype=float)
+    soc = np.array(s_array := soc_array, dtype=float)
     U = np.array(U_array, dtype=float)
     _user_ocv_data["lco"]["soc"] = soc
     _user_ocv_data["lco"]["U"] = U
@@ -45,7 +45,7 @@ def set_user_ocv_nca(soc_array, U_array):
     _user_ocv_data["nca"]["spline"] = CubicSpline(soc, U)
 
 # ============================================================
-# Graphite (Anode) – اسکلت کامل
+# Graphite (Anode)
 # ============================================================
 
 def U_anode_graphite(soc, T_K):
