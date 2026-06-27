@@ -15,19 +15,14 @@ from physion_core.fullcell.fullcell_model import FullCellModel
 
 class ModelPackConfig:
     """
-    تنظیمات سطح بالا برای انتخاب شیمی و مسیر JSON.
+    تنظیمات انتخاب شیمی و مسیر JSON.
     """
 
     def __init__(self,
-                 chemistry_name: str = "LFP_GRAPHITE_V1",
-                 params_path: str = "params/lfp_graphite_v1.json"):
+                 chemistry_name: str = "LFP_GRAPHITE_SIMPLE",
+                 params_path: str = "physion_core/params/lfp_graphite_simple.json"):
         self.chemistry_name = chemistry_name
         self.params_path = params_path
-
-        # بعداً می‌توانی این‌ها را قابل انتخاب کنی
-        self.use_electrolyte_1d = True
-        self.use_tzim = True
-        self.use_thermal = True
 
 
 def build_chemistry(cfg_pack: ModelPackConfig):
@@ -36,16 +31,16 @@ def build_chemistry(cfg_pack: ModelPackConfig):
     """
     name = cfg_pack.chemistry_name.upper()
 
-    if name == "NMC_GRAPHITE_V1":
-        return NMCGraphiteChemistry(load_nmc_graphite_params(cfg_pack.params_path))
-
-    if name == "LFP_GRAPHITE_V1":
+    if name.startswith("LFP_GRAPHITE"):
         return LFPGraphiteChemistry(load_lfp_graphite_params(cfg_pack.params_path))
 
-    if name == "LCO_GRAPHITE_V1":
+    if name.startswith("NMC_GRAPHITE"):
+        return NMCGraphiteChemistry(load_nmc_graphite_params(cfg_pack.params_path))
+
+    if name.startswith("LCO_GRAPHITE"):
         return LCOGraphiteChemistry(load_lco_graphite_params(cfg_pack.params_path))
 
-    if name == "NCA_GRAPHITE_V1":
+    if name.startswith("NCA_GRAPHITE"):
         return NCAGraphiteChemistry(load_nca_graphite_params(cfg_pack.params_path))
 
     raise ValueError(f"Unknown chemistry: {cfg_pack.chemistry_name}")
@@ -53,7 +48,7 @@ def build_chemistry(cfg_pack: ModelPackConfig):
 
 def build_fullcell(cfg):
     """
-    اتصال شیمی به cfg و ساخت FullCellModel آمادهٔ اجرا.
+    اتصال شیمی به cfg و ساخت FullCellModel.
     """
     cfg.chemistry = build_chemistry(cfg.model_pack)
     return FullCellModel(cfg)
