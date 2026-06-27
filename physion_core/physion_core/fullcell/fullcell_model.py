@@ -6,14 +6,20 @@ class ReactionModel:
         self.chemistry = chemistry
 
     def compute_flux(self, state: PhysicsState):
-        # فعلاً اسکلت
+        # فعلاً جریان را همان ورودی می‌گیریم
         return state.current_density_A_m2
 
     def compute_heat(self, state: PhysicsState):
-        # مدل ساده برناردی (بدون ترم آنتروپی)
-        return state.current_density_A_m2 * (
-            state.overpotential_anode_V + state.overpotential_cathode_V
-        )
+        # استفاده از شیمی برای محاسبه OCV
+        U_an = self.chemistry.U_anode(state.soc_anode, state.temperature_K)
+        U_ca = self.chemistry.U_cathode(state.soc_cathode, state.temperature_K)
+
+        # اورپتانسیل واقعی
+        eta_an = state.overpotential_anode_V + (U_an - U_ca)
+        eta_ca = state.overpotential_cathode_V + (U_ca - U_an)
+
+        # مدل ساده برناردی
+        return state.current_density_A_m2 * (eta_an + eta_ca)
 
 
 class MechanicalModel:
