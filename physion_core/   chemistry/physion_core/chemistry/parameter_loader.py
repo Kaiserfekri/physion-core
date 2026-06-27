@@ -1,7 +1,11 @@
 from .parameter_set import ParameterSet
 from . import functions as f
 
-def _map_params(raw):
+def _map_params(raw: dict) -> ParameterSet:
+    """
+    raw: دیکشنری خوانده‌شده از JSON.
+    این تابع نام توابع را به خود تابع در functions.py نگاشت می‌کند.
+    """
     return ParameterSet({
         "U_anode": getattr(f, raw["U_anode"]),
         "U_cathode": getattr(f, raw["U_cathode"]),
@@ -18,18 +22,22 @@ def _map_params(raw):
         "degradation": raw["degradation"],
     })
 
-def load_lfp_graphite_params(path):
+
+def load_lfp_graphite_params(path: str) -> ParameterSet:
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
 
-def load_nmc_graphite_params(path):
+
+def load_nmc_graphite_params(path: str) -> ParameterSet:
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
 
-def load_lco_graphite_params(path):
+
+def load_lco_graphite_params(path: str) -> ParameterSet:
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
 
-def load_nca_graphite_params(path):
+
+def load_nca_graphite_params(path: str) -> ParameterSet:
     raw_ps = ParameterSet.from_json(path)
     return _map_params(raw_ps.data)
