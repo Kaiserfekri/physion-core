@@ -3,52 +3,42 @@ from physion_core.chemistry.lfp_graphite import LFPGraphiteChemistry
 from physion_core.chemistry.lco_graphite import LCOGraphiteChemistry
 from physion_core.chemistry.nca_graphite import NCAGraphiteChemistry
 
-from physion_core.chemistry.parameter_loader import (
-    load_nmc_graphite_params,
-    load_lfp_graphite_params,
-    load_lco_graphite_params,
-    load_nca_graphite_params,
-)
-
+from physion_core.chemistry.parameter_loader import load_params
 from physion_core.fullcell.fullcell_model import FullCellModel
 
-
 class ModelPackConfig:
-    """
-    تنظیمات انتخاب شیمی و مسیر JSON.
-    """
-
     def __init__(self,
                  chemistry_name: str = "LFP_GRAPHITE_SIMPLE",
                  params_path: str = "physion_core/params/lfp_graphite_simple.json"):
         self.chemistry_name = chemistry_name
         self.params_path = params_path
 
-
-def build_chemistry(cfg_pack: ModelPackConfig):
-    """
-    ساخت آبجکت شیمی بر اساس نام و JSON.
-    """
-    name = cfg_pack.chemistry_name.upper()
+def build_chemistry(mp_cfg: ModelPackConfig):
+    name = mp_cfg.chemistry_name.upper()
+    params = load_params(mp_cfg.params_path)
 
     if name.startswith("LFP_GRAPHITE"):
-        return LFPGraphiteChemistry(load_lfp_graphite_params(cfg_pack.params_path))
+        return LFPGraphiteChemistry(params)
 
     if name.startswith("NMC_GRAPHITE"):
-        return NMCGraphiteChemistry(load_nmc_graphite_params(cfg_pack.params_path))
+        return NMCGraphiteChemistry(params)
 
     if name.startswith("LCO_GRAPHITE"):
-        return LCOGraphiteChemistry(load_lco_graphite_params(cfg_pack.params_path))
+        return LCOGraphiteChemistry(params)
 
     if name.startswith("NCA_GRAPHITE"):
-        return NCAGraphiteChemistry(load_nca_graphite_params(cfg_pack.params_path))
+        return NCAGraphiteChemistry(params)
 
-    raise ValueError(f"Unknown chemistry: {cfg_pack.chemistry_name}")
+    raise ValueError(f"Unknown chemistry: {mp_cfg.chemistry_name}")
 
+def build_fullcell(mp_cfg: ModelPackConfig):
+    chemistry = build_chemistry(mp_cfg)
 
-def build_fullcell(cfg):
-    """
-    اتصال شیمی به cfg و ساخت FullCellModel.
-    """
-    cfg.chemistry = build_chemistry(cfg.model_pack)
+    class Cfg:
+        pass
+
+    cfg = Cfg()
+    cfg.chemistry = chemistry
+    cfg.model_pack = mp_cfg
+
     return FullCellModel(cfg)
