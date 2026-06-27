@@ -1,10 +1,6 @@
-from .base import BaseChemistry
+from physion_core.chemistry.base import BaseChemistry
 
 class LCOGraphiteChemistry(BaseChemistry):
-    """
-    شیمی LCO/Graphite با پارامترهای خوانده‌شده از JSON.
-    """
-
     def __init__(self, params):
         self.p = params
 
@@ -43,3 +39,4 @@ class LCOGraphiteChemistry(BaseChemistry):
 
     def degradation_params(self):
         return self.p["degradation"]
+
