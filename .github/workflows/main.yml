@@ -1,0 +1,77 @@
+name: Physion Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 📥 گرفتن کد پروژه
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 🐍 تنظیم Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 📦 نصب dependencies (اگر وجود داشته باشد)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # 🧠 تنظیم مسیر پروژه برای import ها (حل ModuleNotFoundError)
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
+      # 🧰 TOOLS - auto fix formulas
+      - name: Run tools - auto fix formulas
+        run: python tools/auto_fix_formulas.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # 🧰 TOOLS - refactor core
+      - name: Run tools - refactor core
+        run: python tools/auto_refactor_physion_core.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # 🧪 TESTS
+      - name: Run tests - basic
+        run: python -m pytest tests/test_basic.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run tests - formulas
+        run: python -m pytest tests/test_formulas.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # ⚙️ FORMULA ENGINE
+      - name: Run formula engine - matcher
+        run: python formula_engine/matcher.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run formula engine - applier
+        run: python formula_engine/applier.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run formula engine - library
+        run: python formula_engine/library.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # 🚀 WORKER (اجرای سیستم اصلی)
+      - name: Run worker system
+        run: python worker-python/worker.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
