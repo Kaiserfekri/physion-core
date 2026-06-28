@@ -1,0 +1,76 @@
+name: Physion Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 📥 گرفتن کد
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 🐍 Python setup
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 📦 نصب dependencies (اگر وجود دارد)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # 🧠 تنظیم مسیر پروژه برای import
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
+      # 🧰 TOOLS
+      - name: Run tools - auto fix formulas
+        run: python tools/auto_fix_formulas.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run tools - refactor core
+        run: python tools/auto_refactor_physion_core.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # 🧪 TESTS
+      - name: Run test_basic
+        run: python -m pytest tests/test_basic.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run test_formulas
+        run: python -m pytest tests/test_formulas.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # ⚙️ FORMULA ENGINE
+      - name: Run formula_engine - applier
+        run: python formula_engine/applier.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run formula_engine - library
+        run: python formula_engine/library.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Run formula_engine - matcher
+        run: python formula_engine/matcher.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      # 🚀 WORKER
+      - name: Run worker
+        run: python worker-python/worker.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
