@@ -1,173 +1,308 @@
 """
 validators.py
-==============
+=============
 
 Validation utilities for Physion parameter sets.
-
-This module validates:
-    - Common parameters
-    - Chemistry-specific parameters
-    - Future industrial extensions
 """
 
-from typing import Dict
+from __future__ import annotations
 
+from typing import Any
+
+
+# ==========================================================
+# Exception
+# ==========================================================
 
 class ParameterValidationError(ValueError):
-    """Raised when a parameter set is invalid."""
+    """
+    Raised when a parameter set is invalid.
+    """
     pass
 
 
-# ============================================================
+# ==========================================================
 # Generic Validators
-# ============================================================
+# ==========================================================
 
-def require_keys(params: Dict, required):
-    """Ensure required keys exist."""
+def require_keys(
+    params: dict[str, Any],
+    required: list[str],
+) -> None:
 
-    missing = [k for k in required if k not in params]
+    missing = [
+
+        key
+
+        for key in required
+
+        if key not in params
+
+    ]
 
     if missing:
+
         raise ParameterValidationError(
+
             f"Missing required parameters: {missing}"
+
         )
 
 
-def positive(params: Dict, keys):
-    """Ensure parameters are strictly positive."""
+def positive(
+    params: dict[str, Any],
+    keys: list[str],
+) -> None:
 
     for key in keys:
 
+        if key not in params:
+
+            continue
+
         if params[key] <= 0:
+
             raise ParameterValidationError(
+
                 f"{key} must be > 0"
+
             )
 
 
-def bounded(params: Dict, key, low, high):
-    """Ensure parameter lies inside a range."""
+def bounded(
+    params: dict[str, Any],
+    key: str,
+    low: float,
+    high: float,
+) -> None:
+
+    if key not in params:
+
+        return
 
     value = params[key]
 
     if not (low <= value <= high):
 
         raise ParameterValidationError(
+
             f"{key} must be between {low} and {high}"
+
         )
 
 
-# ============================================================
-# Common Validation
-# ============================================================
+# ==========================================================
+# Protocol Validation
+# ==========================================================
 
-def validate_common(params: Dict):
-    """
-    Validation required for every chemistry.
-    """
+def validate_protocol(
+    protocol: dict[str, Any],
+) -> None:
 
     require_keys(
-        params,
+
+        protocol,
+
         [
-            "temperature",
-            "c_rate",
-            "porosity",
+
+            "type",
+
+            "V_charge",
+
+            "V_discharge",
+
+            "I_1C",
+
+            "C_rate",
+
+            "V_cv_cutoff",
+
+            "I_cv_cutoff",
+
+            "n_cycles",
+
+            "t_half_cycle",
+
+            "Q_initial",
+
+            "capacity_cutoff",
+
         ],
+
     )
 
     positive(
-        params,
+
+        protocol,
+
         [
-            "temperature",
-            "c_rate",
+
+            "V_charge",
+
+            "V_discharge",
+
+            "I_1C",
+
+            "C_rate",
+
+            "n_cycles",
+
+            "t_half_cycle",
+
+            "Q_initial",
+
         ],
+
     )
 
     bounded(
-        params,
-        "porosity",
+
+        protocol,
+
+        "capacity_cutoff",
+
         0.0,
+
         1.0,
+
     )
 
 
-# ============================================================
-# Chemistry Specific Validators
-# ============================================================
+# ==========================================================
+# Common Validation
+# ==========================================================
 
-def validate_lithium_metal(params: Dict):
-    """
-    Lithium Metal specific validation.
-    """
+def validate_common(
+    params: dict[str, Any],
+) -> None:
 
-    if "exchange_current_density" in params:
+    require_keys(
 
-        positive(
-            params,
-            [
-                "exchange_current_density",
-            ],
-        )
+        params,
+
+        [
+
+            "capacity_anode",
+
+            "capacity_cathode",
+
+            "electrolyte",
+
+            "mechanical",
+
+            "degradation",
+
+            "protocol",
+
+        ],
+
+    )
+
+    positive(
+
+        params,
+
+        [
+
+            "capacity_anode",
+
+            "capacity_cathode",
+
+        ],
+
+    )
+
+    validate_protocol(
+
+        params["protocol"]
+
+    )
 
 
-def validate_lfp(params: Dict):
-    """
-    LFP validation.
-    """
+# ==========================================================
+# Chemistry Validators
+# ==========================================================
+
+def validate_lco_graphite(
+    params: dict[str, Any],
+) -> None:
     return
 
 
-def validate_nmc(params: Dict):
-    """
-    NMC validation.
-    """
+def validate_lfp_graphite(
+    params: dict[str, Any],
+) -> None:
     return
 
 
-def validate_lithium_sulfur(params: Dict):
-    """
-    Lithium Sulfur validation.
-    """
+def validate_nmc_graphite(
+    params: dict[str, Any],
+) -> None:
     return
 
 
-# ============================================================
-# Main Dispatcher
-# ============================================================
+def validate_nca_graphite(
+    params: dict[str, Any],
+) -> None:
+    return
+
+
+# ==========================================================
+# Registry
+# ==========================================================
+
+CHEMISTRY_VALIDATORS = {
+
+    "lco_graphite":
+        validate_lco_graphite,
+
+    "lfp_graphite":
+        validate_lfp_graphite,
+
+    "nmc_graphite":
+        validate_nmc_graphite,
+
+    "nca_graphite":
+        validate_nca_graphite,
+
+}
+
+
+# ==========================================================
+# Public API
+# ==========================================================
 
 def validate(
     chemistry: str,
-    params: Dict,
-):
-    """
-    Main validation entry point.
-
-    Example
-    -------
-    validate(
-        chemistry="lithium_metal",
-        params=data,
-    )
-    """
-
-    validate_common(params)
+    params: dict[str, Any],
+) -> bool:
 
     chemistry = chemistry.lower()
 
-    if chemistry == "lithium_metal":
-        validate_lithium_metal(params)
+    validate_common(
 
-    elif chemistry == "lfp":
-        validate_lfp(params)
+        params,
 
-    elif chemistry == "nmc":
-        validate_nmc(params)
+    )
 
-    elif chemistry == "lithium_sulfur":
-        validate_lithium_sulfur(params)
+    validator = CHEMISTRY_VALIDATORS.get(
 
-    else:
+        chemistry,
+
+    )
+
+    if validator is None:
+
         raise ParameterValidationError(
-            f"Unknown chemistry: {chemistry}"
+
+            f"Unsupported chemistry: {chemistry}"
+
         )
+
+    validator(
+
+        params,
+
+    )
 
     return True
