@@ -12,7 +12,7 @@ choose a chemistry or simulation level.
 # Default Chemistry
 # -----------------------------------------
 
-DEFAULT_CHEMISTRY = "lithium_metal"
+DEFAULT_CHEMISTRY = "lfp_graphite"
 
 # -----------------------------------------
 # Default Simulation Level
