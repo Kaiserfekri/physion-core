@@ -14,3 +14,17 @@
   "mechanical": { "E_modulus": 850000000, "alpha_vol": 0.00001, "beta_soc": 0.02, "swelling_coeff": 0.018 },
   "degradation": { "k_LLI": 0.0, "k_LAM": 0.0 }
 }
+,
+"protocol": {
+    "type": "CC-CV",
+    "V_charge": 4.2,
+    "V_discharge": 2.8,
+    "I_1C": 0.001,
+    "C_rate": 1.0,
+    "V_cv_cutoff": 4.19,
+    "I_cv_cutoff": 0.0001,
+    "n_cycles": 100,
+    "t_half_cycle": 3600.0,
+    "Q_initial": 3.0,
+    "capacity_cutoff": 0.80
+}
