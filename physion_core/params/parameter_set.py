@@ -178,19 +178,10 @@ class ParameterSet:
     # ======================================================
 
     def metadata(
-        self,
-    ) -> dict[str, str]:
-        """
-        Return ParameterSet metadata.
-        """
+    self,
+):
 
-        return {
-
-            "chemistry": self._chemistry,
-
-            "level": self._level,
-
-        }
+    return self._parameters["metadata"]
 
     # ======================================================
     # Utilities
