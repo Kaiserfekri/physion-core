@@ -2,128 +2,82 @@
 parameter_registry.py
 =====================
 
-Registry of all supported chemistries and simulation levels.
+Registry of all supported Physion chemistries and
+simulation levels.
 
-This module contains registry data only.
-Parameter loading is handled by loader.py.
+This module ONLY stores registry information.
+
+No loading logic should exist here.
+Loading, validation and JSON parsing are handled
+by loader.py.
 """
 
-# ============================================================
-# Base Package
-# ============================================================
-
-BASE_PACKAGE = "physion_core.params"
-
-
-# ============================================================
+# ==========================================================
 # Supported Chemistries
-# ============================================================
+# ==========================================================
 
 CHEMISTRIES = {
 
-    "lithium_metal": {
-        "name": "Lithium Metal",
+    "lco_graphite": {
+        "name": "LCO / Graphite",
         "enabled": True,
     },
 
-    "lfp": {
-        "name": "Lithium Iron Phosphate",
+    "lfp_graphite": {
+        "name": "LFP / Graphite",
         "enabled": True,
     },
 
-    "nmc": {
-        "name": "Nickel Manganese Cobalt",
+    "nmc_graphite": {
+        "name": "NMC / Graphite",
         "enabled": True,
     },
 
-    "lithium_sulfur": {
-        "name": "Lithium Sulfur",
+    "nca_graphite": {
+        "name": "NCA / Graphite",
         "enabled": True,
     },
 
 }
 
 
-# ============================================================
+# ==========================================================
 # Supported Simulation Levels
-# ============================================================
+# ==========================================================
 
 LEVELS = {
 
     "basic": {
-        "name": "Basic",
+
+        "dataset_suffix": "simple",
+
         "priority": 1,
+
     },
 
     "advanced": {
-        "name": "Advanced",
+
+        "dataset_suffix": "user",
+
         "priority": 2,
+
     },
 
     "industrial": {
-        "name": "Industrial",
+
+        "dataset_suffix": "industrial",
+
         "priority": 3,
+
     },
 
 }
 
 
-# ============================================================
-# Parameter Module Registry
-# ============================================================
+# ==========================================================
+# Convenience Constants
+# ==========================================================
 
-PARAMETER_REGISTRY = {
+SUPPORTED_CHEMISTRIES = tuple(CHEMISTRIES.keys())
 
-    # --------------------------------------------------------
-    # Lithium Metal
-    # --------------------------------------------------------
-
-    ("lithium_metal", "basic"):
-        f"{BASE_PACKAGE}.basic.lithium_metal",
-
-    ("lithium_metal", "advanced"):
-        f"{BASE_PACKAGE}.advanced.lithium_metal",
-
-    ("lithium_metal", "industrial"):
-        f"{BASE_PACKAGE}.industrial.lithium_metal",
-
-    # --------------------------------------------------------
-    # LFP
-    # --------------------------------------------------------
-
-    ("lfp", "basic"):
-        f"{BASE_PACKAGE}.basic.lfp",
-
-    ("lfp", "advanced"):
-        f"{BASE_PACKAGE}.advanced.lfp",
-
-    ("lfp", "industrial"):
-        f"{BASE_PACKAGE}.industrial.lfp",
-
-    # --------------------------------------------------------
-    # NMC
-    # --------------------------------------------------------
-
-    ("nmc", "basic"):
-        f"{BASE_PACKAGE}.basic.nmc",
-
-    ("nmc", "advanced"):
-        f"{BASE_PACKAGE}.advanced.nmc",
-
-    ("nmc", "industrial"):
-        f"{BASE_PACKAGE}.industrial.nmc",
-
-    # --------------------------------------------------------
-    # Lithium Sulfur
-    # --------------------------------------------------------
-
-    ("lithium_sulfur", "basic"):
-        f"{BASE_PACKAGE}.basic.lithium_sulfur",
-
-    ("lithium_sulfur", "advanced"):
-        f"{BASE_PACKAGE}.advanced.lithium_sulfur",
-
-    ("lithium_sulfur", "industrial"):
-        f"{BASE_PACKAGE}.industrial.lithium_sulfur",
-
-}
+SUPPORTED_LEVELS = tuple(LEVELS.keys())
