@@ -4,36 +4,23 @@ parameter_registry.py
 
 Registry of all supported chemistries and simulation levels.
 
-This module only defines where parameter sets are located.
+This module only stores registry information.
 Loading is handled by loader.py.
 """
 
 # ============================================================
-# Supported simulation levels
+# Base Package
 # ============================================================
 
-LEVELS = {
-    "basic": {
-        "name": "Basic",
-        "priority": 1,
-    },
+BASE_PACKAGE = "physion_core.params"
 
-    "advanced": {
-        "name": "Advanced",
-        "priority": 2,
-    },
-
-    "industrial": {
-        "name": "Industrial",
-        "priority": 3,
-    },
-}
 
 # ============================================================
-# Supported chemistries
+# Supported Chemistries
 # ============================================================
 
 CHEMISTRIES = {
+
     "lithium_metal": {
         "name": "Lithium Metal",
         "enabled": True,
@@ -53,51 +40,195 @@ CHEMISTRIES = {
         "name": "Lithium Sulfur",
         "enabled": True,
     },
+
 }
 
+
 # ============================================================
-# Parameter file registry
+# Supported Simulation Levels
+# ============================================================
+
+LEVELS = {
+
+    "basic": {
+        "name": "Basic",
+        "priority": 1,
+    },
+
+    "advanced": {
+        "name": "Advanced",
+        "priority": 2,
+    },
+
+    "industrial": {
+        "name": "Industrial",
+        "priority": 3,
+    },
+
+}
+
+
+# ============================================================
+# Convenience Constants
+# ============================================================
+
+SUPPORTED_CHEMISTRIES = tuple(CHEMISTRIES.keys())
+
+SUPPORTED_LEVELS = tuple(LEVELS.keys())
+
+
+# ============================================================
+# Parameter Module Registry
 # ============================================================
 
 PARAMETER_REGISTRY = {
 
+    # --------------------------------------------------------
     # Lithium Metal
+    # --------------------------------------------------------
+
     ("lithium_metal", "basic"):
-        "physion_core.params.basic.lithium_metal",
+        f"{BASE_PACKAGE}.basic.lithium_metal",
 
     ("lithium_metal", "advanced"):
-        "physion_core.params.advanced.lithium_metal",
+        f"{BASE_PACKAGE}.advanced.lithium_metal",
 
     ("lithium_metal", "industrial"):
-        "physion_core.params.industrial.lithium_metal",
+        f"{BASE_PACKAGE}.industrial.lithium_metal",
 
+    # --------------------------------------------------------
     # LFP
+    # --------------------------------------------------------
+
     ("lfp", "basic"):
-        "physion_core.params.basic.lfp",
+        f"{BASE_PACKAGE}.basic.lfp",
 
     ("lfp", "advanced"):
-        "physion_core.params.advanced.lfp",
+        f"{BASE_PACKAGE}.advanced.lfp",
 
     ("lfp", "industrial"):
-        "physion_core.params.industrial.lfp",
+        f"{BASE_PACKAGE}.industrial.lfp",
 
+    # --------------------------------------------------------
     # NMC
+    # --------------------------------------------------------
+
     ("nmc", "basic"):
-        "physion_core.params.basic.nmc",
+        f"{BASE_PACKAGE}.basic.nmc",
 
     ("nmc", "advanced"):
-        "physion_core.params.advanced.nmc",
+        f"{BASE_PACKAGE}.advanced.nmc",
 
     ("nmc", "industrial"):
-        "physion_core.params.industrial.nmc",
+        f"{BASE_PACKAGE}.industrial.nmc",
 
+    # --------------------------------------------------------
     # Lithium Sulfur
+    # --------------------------------------------------------
+
     ("lithium_sulfur", "basic"):
-        "physion_core.params.basic.lithium_sulfur",
+        f"{BASE_PACKAGE}.basic.lithium_sulfur",
 
     ("lithium_sulfur", "advanced"):
-        "physion_core.params.advanced.lithium_sulfur",
+        f"{BASE_PACKAGE}.advanced.lithium_sulfur",
 
     ("lithium_sulfur", "industrial"):
-        "physion_core.params.industrial.lithium_sulfur",
+        f"{BASE_PACKAGE}.industrial.lithium_sulfur",
+
 }
+
+
+# ============================================================
+# Helper Functions
+# ============================================================
+
+def is_supported_chemistry(name: str) -> bool:
+    """
+    Check whether a chemistry is supported.
+    """
+    return name.lower() in SUPPORTED_CHEMISTRIES
+
+
+def is_supported_level(level: str) -> bool:
+    """
+    Check whether a simulation level is supported.
+    """
+    return level.lower() in SUPPORTED_LEVELS
+
+
+def is_registered(
+    chemistry: str,
+    level: str,
+) -> bool:
+    """
+    Check whether a chemistry/level combination
+    exists in the registry.
+    """
+
+    key = (
+        chemistry.lower(),
+        level.lower(),
+    )
+
+    return key in PARAMETER_REGISTRY
+
+
+def get_parameter_module(
+    chemistry: str,
+    level: str,
+) -> str:
+    """
+    Return the Python module containing the requested
+    parameter set.
+
+    Example
+    -------
+    get_parameter_module(
+        chemistry="lithium_metal",
+        level="industrial",
+    )
+    """
+
+    chemistry = chemistry.lower()
+    level = level.lower()
+
+    if not is_supported_chemistry(chemistry):
+        raise ValueError(
+            f"Unsupported chemistry: {chemistry}"
+        )
+
+    if not is_supported_level(level):
+        raise ValueError(
+            f"Unsupported level: {level}"
+        )
+
+    if not CHEMISTRIES[chemistry]["enabled"]:
+        raise ValueError(
+            f"{chemistry} is currently disabled."
+        )
+
+    key = (
+        chemistry,
+        level,
+    )
+
+    if key not in PARAMETER_REGISTRY:
+        raise KeyError(
+            f"No parameter module registered for {key}"
+        )
+
+    return PARAMETER_REGISTRY[key]
+
+
+def list_supported_chemistries() -> list[str]:
+    """
+    Return a list of supported chemistries.
+    """
+    return list(SUPPORTED_CHEMISTRIES)
+
+
+def list_supported_levels() -> list[str]:
+    """
+    Return a list of supported simulation levels.
+    """
+    return list(SUPPORTED_LEVELS)
