@@ -1,1 +1,16 @@
-#q
+{
+  "name": "LFP/Graphite – User OCV",
+  "U_anode": "U_anode_graphite",
+  "U_cathode": "U_cathode_lfp_user",
+  "dU_anode_dT": "dU_anode_dT_graphite",
+  "dU_cathode_dT": "dU_cathode_dT_lfp",
+  "capacity_anode": 372.0,
+  "capacity_cathode": 160.0,
+  "D_anode": "D_anode_graphite",
+  "D_cathode": "D_cathode_lfp",
+  "kinetics_anode": { "i0_ref": 1.0, "alpha_a": 0.5, "alpha_c": 0.5 },
+  "kinetics_cathode": { "i0_ref": 0.8, "alpha_a": 0.5, "alpha_c": 0.5 },
+  "electrolyte": { "D_e": 1e-10, "t_plus": 0.4 },
+  "mechanical": { "E_modulus": 800000000, "alpha_vol": 0.00001, "beta_soc": 0.02, "swelling_coeff": 0.015 },
+  "degradation": { "k_LLI": 0.0, "k_LAM": 0.0 }
+}
