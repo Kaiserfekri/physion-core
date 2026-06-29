@@ -54,7 +54,7 @@ class ParameterSet:
 
         self._level = level
 
-        self._parameters = load(
+        self._parameters = load_parameters(
 
             chemistry=chemistry,
 
