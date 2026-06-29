@@ -2,347 +2,418 @@
 loader.py
 =========
 
-Physion Parameter Loader
+Central parameter loader for Physion.
 
 Responsibilities
 ----------------
-- Locate the correct dataset
-- Load JSON parameter files
-- Resolve function references
-- Validate parameter sets
-- Return simulation-ready dictionaries
+- Locate parameter datasets
+- Read JSON datasets
+- Resolve callable chemistry functions
+- Validate datasets
+- Attach metadata
+- Attach enabled features
+- Cache loaded parameter sets
 
-This module is the only entry point for loading
-parameter datasets.
+This is the ONLY module allowed to load parameter
+datasets from disk.
 """
 
 from __future__ import annotations
 
 import copy
-import importlib
 import json
 from pathlib import Path
 from typing import Any
 
 from physion_core.chemistry import functions
 
-from .parameter_registry import (
+from physion_core.params.defaults import (
+    DEFAULT_CHEMISTRY,
+    DEFAULT_LEVEL,
+)
+
+from physion_core.params.features import (
+    BASIC,
+    ADVANCED,
+    INDUSTRIAL,
+)
+
+from physion_core.params.metadata import (
+    build_metadata,
+)
+
+from physion_core.params.parameter_registry import (
     CHEMISTRIES,
     LEVELS,
 )
 
-from .validators import validate
-
+from physion_core.params.validators import (
+    validate,
+)
 
 # ==========================================================
-# Paths
+# Dataset location
 # ==========================================================
 
-PACKAGE_DIR = Path(__file__).resolve().parent
+_DATASET_DIRECTORY = (
+    Path(__file__).parent / "datasets"
+)
 
-DATASET_DIR = PACKAGE_DIR / "datasets"
 # ==========================================================
-# Registry Utilities
+# Internal cache
 # ==========================================================
 
-def _normalize_name(value: str) -> str:
-    """
-    Normalize chemistry and level names.
-    """
+_CACHE: dict[
+    tuple[str, str],
+    dict[str, Any],
+] = {}
 
-    return value.strip().lower()
+# ==========================================================
+# Feature map
+# ==========================================================
 
+_FEATURES = {
 
-def _validate_chemistry(
-    chemistry: str,
-) -> str:
-    """
-    Validate chemistry name.
-    """
+    "basic": BASIC,
 
-    chemistry = _normalize_name(chemistry)
+    "advanced": ADVANCED,
 
-    if chemistry not in CHEMISTRIES:
+    "industrial": INDUSTRIAL,
 
-        raise ValueError(
-            f"Unsupported chemistry: '{chemistry}'"
-        )
-
-    if not CHEMISTRIES[chemistry]["enabled"]:
-
-        raise ValueError(
-            f"Chemistry '{chemistry}' is disabled."
-        )
-
-    return chemistry
-
-
-def _validate_level(
-    level: str,
-) -> str:
-    """
-    Validate simulation level.
-    """
-
-    level = _normalize_name(level)
-
-    if level not in LEVELS:
-
-        raise ValueError(
-            f"Unsupported level: '{level}'"
-        )
-
-    return level
-
+}
+# ==========================================================
+# Dataset filename
+# ==========================================================
 
 def _dataset_filename(
     chemistry: str,
     level: str,
 ) -> str:
     """
-    Return dataset filename.
+    Build dataset filename.
 
     Example
     -------
-    chemistry = "lfp_graphite"
-    level = "advanced"
+    nmc_graphite
+    industrial
 
-    -> lfp_graphite_user.json
+    ->
+    nmc_graphite_industrial.json
     """
-
-    chemistry = _validate_chemistry(chemistry)
-
-    level = _validate_level(level)
 
     suffix = LEVELS[level]["dataset_suffix"]
 
     return f"{chemistry}_{suffix}.json"
 
 
+# ==========================================================
+# Dataset path
+# ==========================================================
+
 def _dataset_path(
     chemistry: str,
     level: str,
 ) -> Path:
     """
-    Return absolute dataset path.
+    Return full dataset path.
     """
 
-    filename = _dataset_filename(
-        chemistry,
-        level,
+    return (
+        _DATASET_DIRECTORY
+        / _dataset_filename(
+            chemistry,
+            level,
+        )
     )
 
-    path = DATASET_DIR / filename
 
-    if not path.exists():
-
-        raise FileNotFoundError(
-            f"Dataset not found:\n{path}"
-        )
-
-    return path
-    # ==========================================================
-# JSON Loader
+# ==========================================================
+# Read JSON
 # ==========================================================
 
 def _read_json(
     path: Path,
 ) -> dict[str, Any]:
     """
-    Read a JSON parameter dataset.
-
-    Parameters
-    ----------
-    path
-        Absolute path to the dataset.
-
-    Returns
-    -------
-    dict
-        Parameter dictionary.
+    Read a JSON parameter file.
     """
 
-    with path.open(
-        "r",
-        encoding="utf-8",
-    ) as file:
+    if not path.exists():
 
-        data = json.load(file)
+        raise FileNotFoundError(
 
-    return copy.deepcopy(data)
+            f"Dataset not found:\n{path}"
 
-
-def _load_dataset(
-    chemistry: str,
-    level: str,
-) -> dict[str, Any]:
-    """
-    Load a dataset from disk.
-
-    This function performs no function
-    resolution and no validation.
-    """
-
-    dataset_path = _dataset_path(
-        chemistry,
-        level,
-    )
-
-    parameters = _read_json(
-        dataset_path,
-    )
-
-    return parameters
-    # ==========================================================
-# Function Resolver
-# ==========================================================
-
-# Keys that should be resolved into callable objects.
-FUNCTION_KEYS = {
-
-    "U_anode",
-
-    "U_cathode",
-
-    "dU_anode_dT",
-
-    "dU_cathode_dT",
-
-    "D_anode",
-
-    "D_cathode",
-
-}
-
-
-def _resolve_function(
-    function_name: str,
-):
-    """
-    Resolve a function name stored inside the JSON
-    dataset into a Python callable.
-
-    Example
-    -------
-    "U_anode_graphite"
-
-        ↓
-
-    functions.U_anode_graphite
-    """
-
-    try:
-
-        return getattr(
-            functions,
-            function_name,
         )
 
-    except AttributeError as exc:
+    with open(
 
-        raise AttributeError(
-            f"Unknown chemistry function: "
-            f"'{function_name}'"
-        ) from exc
+        path,
 
+        "r",
 
-def _resolve_functions(
-    parameters: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    Replace function names with callable objects.
+        encoding="utf-8",
 
-    Only keys listed in FUNCTION_KEYS are resolved.
-    """
+    ) as file:
 
-    resolved = copy.deepcopy(parameters)
-
-    for key in FUNCTION_KEYS:
-
-        if key not in resolved:
-            continue
-
-        value = resolved[key]
-
-        if not isinstance(value, str):
-            continue
-
-        resolved[key] = _resolve_function(value)
-
-    return resolved
-    # ==========================================================
-# Validation
+        return json.load(file)
+        # ==========================================================
+# Resolve chemistry functions
 # ==========================================================
 
-def _validate_dataset(
-    chemistry: str,
-    parameters: dict[str, Any],
+def _resolve_functions(
+    params: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    Validate a parameter dataset.
+    Replace function names stored inside the JSON
+    dataset with real callable Python objects.
+    """
+
+    resolved = copy.deepcopy(params)
+
+    def walk(obj):
+
+        if isinstance(obj, dict):
+
+            for key, value in obj.items():
+
+                if isinstance(value, str):
+
+                    if hasattr(functions, value):
+
+                        obj[key] = getattr(
+                            functions,
+                            value,
+                        )
+
+                else:
+
+                    walk(value)
+
+        elif isinstance(obj, list):
+
+            for item in obj:
+
+                walk(item)
+
+    walk(resolved)
+
+    return resolved
+
+
+# ==========================================================
+# Attach enabled features
+# ==========================================================
+
+def _attach_features(
+    params: dict[str, Any],
+    level: str,
+) -> None:
+    """
+    Attach enabled feature flags.
+    """
+
+    params["features"] = copy.deepcopy(
+
+        _FEATURES[level]
+
+    )
+
+
+# ==========================================================
+# Attach metadata
+# ==========================================================
+
+def _attach_metadata(
+    params: dict[str, Any],
+    chemistry: str,
+    level: str,
+) -> None:
+    """
+    Attach metadata object.
+    """
+
+    params["metadata"] = build_metadata(
+
+        chemistry=chemistry,
+
+        level=level,
+
+        description=CHEMISTRIES[
+            chemistry
+        ]["name"],
+
+    )
+
+
+# ==========================================================
+# Validate parameter set
+# ==========================================================
+
+def _validate(
+    chemistry: str,
+    params: dict[str, Any],
+) -> None:
+    """
+    Validate parameter dictionary.
+    """
+
+    validate(
+
+        chemistry,
+
+        params,
+
+    )
+    # ==========================================================
+# Public API
+# ==========================================================
+
+def load_parameters(
+    chemistry: str | None = None,
+    level: str | None = None,
+) -> dict[str, Any]:
+    """
+    Load a Physion parameter set.
 
     Parameters
     ----------
     chemistry
         Chemistry name.
 
-    parameters
-        Parameter dictionary.
+    level
+        Simulation level.
 
     Returns
     -------
     dict
-        Validated parameter dictionary.
+        Fully resolved parameter dictionary.
     """
 
-    validate(
-        chemistry=chemistry,
-        params=parameters,
+    chemistry = chemistry or DEFAULT_CHEMISTRY
+    level = level or DEFAULT_LEVEL
+
+    chemistry = chemistry.lower()
+    level = level.lower()
+
+    if chemistry not in CHEMISTRIES:
+
+        raise ValueError(
+
+            f"Unsupported chemistry: {chemistry}"
+
+        )
+
+    if level not in LEVELS:
+
+        raise ValueError(
+
+            f"Unsupported level: {level}"
+
+        )
+
+    cache_key = (
+
+        chemistry,
+
+        level,
+
     )
 
-    return parameters
-    # ==========================================================
-# Public API
+    if cache_key in _CACHE:
+
+        return copy.deepcopy(
+
+            _CACHE[cache_key]
+
+        )
+
+    dataset = _read_json(
+
+        _dataset_path(
+
+            chemistry,
+
+            level,
+
+        )
+
+    )
+
+    dataset = _resolve_functions(
+
+        dataset
+
+    )
+
+    _attach_features(
+
+        dataset,
+
+        level,
+
+    )
+
+    _attach_metadata(
+
+        dataset,
+
+        chemistry,
+
+        level,
+
+    )
+
+    _validate(
+
+        chemistry,
+
+        dataset,
+
+    )
+
+    _CACHE[cache_key] = copy.deepcopy(
+
+        dataset
+
+    )
+
+    return copy.deepcopy(
+
+        dataset
+
+    )
+
+
+# ==========================================================
+# Cache utilities
 # ==========================================================
 
-def load(
-    chemistry: str,
-    level: str,
-) -> dict[str, Any]:
+def clear_cache() -> None:
     """
-    Load a complete Physion parameter set.
-
-    Workflow
-    --------
-    1. Locate dataset
-    2. Read JSON
-    3. Resolve function references
-    4. Validate
-    5. Return simulation-ready parameters
+    Clear parameter cache.
     """
 
-    parameters = _load_dataset(
-        chemistry,
-        level,
-    )
+    _CACHE.clear()
 
-    parameters = _resolve_functions(
-        parameters,
-    )
 
-    parameters = _validate_dataset(
-        chemistry,
-        parameters,
-    )
+def cache_size() -> int:
+    """
+    Return number of cached parameter sets.
+    """
 
-    return parameters
-    def available_chemistries() -> list[str]:
+    return len(_CACHE)
+
+
+def available_chemistries() -> list[str]:
     """
     Return supported chemistries.
     """
 
     return sorted(
-        CHEMISTRIES.keys(),
+
+        CHEMISTRIES.keys()
+
     )
 
 
@@ -352,5 +423,7 @@ def available_levels() -> list[str]:
     """
 
     return sorted(
-        LEVELS.keys(),
+
+        LEVELS.keys()
+
     )
