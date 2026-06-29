@@ -427,3 +427,19 @@ def available_levels() -> list[str]:
         LEVELS.keys()
 
     )
+    # ==========================================================
+# Backward compatible public API
+# ==========================================================
+
+def load(
+    chemistry: str | None = None,
+    level: str | None = None,
+) -> dict[str, Any]:
+    """
+    Main public loader API.
+    """
+
+    return load_parameters(
+        chemistry=chemistry,
+        level=level,
+    )
