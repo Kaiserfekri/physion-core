@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Any
 from collections.abc import Iterator
 
-from physion_core.params.loader import load
+from physion_core.params.loader import load_parameters
 
 
 class ParameterSet:
