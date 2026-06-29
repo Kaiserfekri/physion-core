@@ -2,12 +2,12 @@
 parameter_set.py
 ================
 
-High-level parameter container used throughout Physion.
+High-level parameter container for Physion.
 
-ParameterSet is the public API for accessing simulation
-parameters.
+ParameterSet is the public interface used by every
+simulation module to access chemistry parameters.
 
-All parameter loading is delegated to loader.py.
+Parameter loading is delegated to loader.py.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from physion_core.params.loader import load
 
 class ParameterSet:
     """
-    High-level container for simulation parameters.
+    High-level parameter container.
 
     Examples
     --------
@@ -30,6 +30,8 @@ class ParameterSet:
     ... )
 
     >>> params["capacity_anode"]
+
+    >>> params.capacity_anode
 
     >>> params.get("electrolyte")
 
@@ -48,14 +50,31 @@ class ParameterSet:
         level: str,
     ) -> None:
 
-        self.chemistry = chemistry
+        self._chemistry = chemistry
 
-        self.level = level
+        self._level = level
 
         self._parameters = load(
+
             chemistry=chemistry,
+
             level=level,
+
         )
+
+    # ======================================================
+    # Properties
+    # ======================================================
+
+    @property
+    def chemistry(self) -> str:
+
+        return self._chemistry
+
+    @property
+    def level(self) -> str:
+
+        return self._level
 
     # ======================================================
     # Dictionary Interface
@@ -88,6 +107,34 @@ class ParameterSet:
         return iter(self._parameters)
 
     # ======================================================
+    # Attribute Interface
+    # ======================================================
+
+    def __getattr__(
+        self,
+        name: str,
+    ) -> Any:
+        """
+        Allow attribute-style access.
+
+        Example
+        -------
+        params.capacity_anode
+        """
+
+        try:
+
+            return self._parameters[name]
+
+        except KeyError as exc:
+
+            raise AttributeError(
+
+                f"No parameter named '{name}'."
+
+            ) from exc
+
+    # ======================================================
     # Convenience Methods
     # ======================================================
 
@@ -98,27 +145,33 @@ class ParameterSet:
     ) -> Any:
 
         return self._parameters.get(
+
             key,
+
             default,
+
         )
 
-    def keys(
-        self,
-    ):
+    def keys(self):
 
         return self._parameters.keys()
 
-    def values(
-        self,
-    ):
+    def values(self):
 
         return self._parameters.values()
 
-    def items(
-        self,
-    ):
+    def items(self):
 
         return self._parameters.items()
+
+    def to_dict(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Return a copy of the parameter dictionary.
+        """
+
+        return dict(self._parameters)
 
     # ======================================================
     # Metadata
@@ -127,24 +180,37 @@ class ParameterSet:
     def metadata(
         self,
     ) -> dict[str, str]:
+        """
+        Return ParameterSet metadata.
+        """
 
         return {
 
-            "chemistry": self.chemistry,
+            "chemistry": self._chemistry,
 
-            "level": self.level,
+            "level": self._level,
 
         }
 
     # ======================================================
-    # Export
+    # Utilities
     # ======================================================
 
-    def to_dict(
+    def copy(
         self,
-    ) -> dict[str, Any]:
+    ) -> "ParameterSet":
+        """
+        Return a new ParameterSet using the same
+        chemistry and simulation level.
+        """
 
-        return dict(self._parameters)
+        return ParameterSet(
+
+            chemistry=self._chemistry,
+
+            level=self._level,
+
+        )
 
     # ======================================================
     # Representation
@@ -156,11 +222,11 @@ class ParameterSet:
 
         return (
 
-            f"ParameterSet("
+            f"{self.__class__.__name__}("
 
-            f"chemistry='{self.chemistry}', "
+            f"chemistry='{self._chemistry}', "
 
-            f"level='{self.level}', "
+            f"level='{self._level}', "
 
             f"parameters={len(self._parameters)})"
 
