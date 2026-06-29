@@ -2,10 +2,10 @@
 parameter_model.py
 ==================
 
-Base parameter model for Physion.
+Abstract base class for all Physion parameter models.
 
-Every chemistry parameter model must inherit
-from ParameterModel.
+Every chemistry parameter model must inherit from
+ParameterModel.
 """
 
 from __future__ import annotations
@@ -16,9 +16,19 @@ from typing import Any
 
 class ParameterModel(ABC):
     """
-    Abstract base class for all Physion
-    parameter models.
+    Base class for every Physion parameter model.
+
+    A parameter model is responsible for loading and
+    returning a complete parameter dictionary for one
+    chemistry and one simulation level.
+
+    Parameters may originate from JSON files,
+    Python objects, databases or any future source.
     """
+
+    # ======================================================
+    # Model information
+    # ======================================================
 
     chemistry: str = ""
 
@@ -30,49 +40,75 @@ class ParameterModel(ABC):
 
     enabled: bool = True
 
+    # JSON filename used by the loader
+    json_file: str = ""
+
+    # ======================================================
+    # Required Interface
+    # ======================================================
+
     @classmethod
     @abstractmethod
     def parameters(cls) -> dict[str, Any]:
         """
-        Return the parameter dictionary.
+        Return the complete parameter dictionary.
+
+        Child classes decide how the parameters are
+        obtained (JSON, database, etc.).
         """
         raise NotImplementedError
 
+    # ======================================================
+    # Optional Interface
+    # ======================================================
+
+    @classmethod
+    def resolve_references(
+        cls,
+        parameters: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Resolve function references if necessary.
+
+        The default implementation simply returns
+        the dictionary unchanged.
+
+        loader.py may override or extend this step.
+        """
+
+        return parameters
+
+    # ======================================================
+    # Metadata
+    # ======================================================
+
     @classmethod
     def metadata(cls) -> dict[str, Any]:
-        """
-        Return metadata describing this
-        parameter model.
-        """
 
         return {
+
             "chemistry": cls.chemistry,
+
             "level": cls.level,
+
             "version": cls.version,
+
             "description": cls.description,
+
             "enabled": cls.enabled,
+
+            "json_file": cls.json_file,
+
         }
 
-    @classmethod
-    def chemistry_name(cls) -> str:
-        """
-        Return chemistry name.
-        """
-
-        return cls.chemistry
-
-    @classmethod
-    def simulation_level(cls) -> str:
-        """
-        Return simulation level.
-        """
-
-        return cls.level
+    # ======================================================
+    # Convenience Methods
+    # ======================================================
 
     @classmethod
     def identifier(cls) -> str:
         """
-        Return a unique identifier.
+        Unique identifier.
 
         Example
         -------
@@ -82,18 +118,33 @@ class ParameterModel(ABC):
         return f"{cls.chemistry}_{cls.level}"
 
     @classmethod
+    def chemistry_name(cls) -> str:
+
+        return cls.chemistry
+
+    @classmethod
+    def simulation_level(cls) -> str:
+
+        return cls.level
+
+    @classmethod
     def is_enabled(cls) -> bool:
-        """
-        Return whether this parameter model
-        is enabled.
-        """
 
         return cls.enabled
+
+    @classmethod
+    def json_filename(cls) -> str:
+
+        return cls.json_file
+
+    # ======================================================
+    # Representation
+    # ======================================================
 
     def __repr__(self) -> str:
 
         return (
-            f"{self.__class__.__name__}("
-            f"chemistry='{self.chemistry}', "
+            f"{self.__class__.__name__}"
+            f"(chemistry='{self.chemistry}', "
             f"level='{self.level}')"
         )
