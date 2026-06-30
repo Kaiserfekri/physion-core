@@ -30,6 +30,7 @@ from dataclasses import (
 from datetime import datetime
 
 from typing import Any
+
 import copy
 import uuid
 
@@ -89,15 +90,11 @@ class BaseState(StateMixin):
     # =====================================================
 
     def touch(self) -> None:
-        """
-        Update modification timestamp.
-        """
+    """
+    Update modification timestamp.
+    """
 
-        object.__setattr__(
-            self,
-            "updated_at",
-            datetime.utcnow(),
-        )
+    self.updated_at = datetime.utcnow()
 
     # =====================================================
     # Lock Management
@@ -224,8 +221,11 @@ class BaseState(StateMixin):
 
             else:
 
-                value = None
+    raise RuntimeError(
 
+        f"Field '{f.name}' has no default value."
+
+    )
             setattr(
 
                 self,
