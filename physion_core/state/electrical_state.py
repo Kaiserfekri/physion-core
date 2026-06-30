@@ -2,25 +2,61 @@
 electrical_state.py
 ===================
 
-Electrical state of a battery cell.
+Industrial Electrical State for Physion Framework.
 
-Responsibilities
-----------------
-• Terminal voltage
-• Open-circuit voltage
+Purpose
+-------
+Owns every electrical variable used throughout the Physion
+Framework.
+
+Architecture
+------------
+• Owns electrical variables only.
+• Contains NO physics.
+• Contains NO numerical methods.
+• Contains NO solver logic.
+• Updated exclusively by ElectricalSolver.
+
+Categories
+----------
+• Voltage
 • Current
-• Power
+• Charge
 • Capacity
-• SOC / DOD
-• Electrical resistance
+• Energy
+• Power
+• State Indicators
+• Resistance
 • Polarization
-• Electrical diagnostics
+• Efficiency
+• Losses
+• Diagnostics
 
-Contains NO physics equations.
+Notes
+-----
+This class is intentionally passive.
 
-Contains NO solver logic.
+It stores simulation state only.
 
-All values are updated only by the Electrical Solver.
+All calculations are delegated to the appropriate solver.
+
+Physion Principles
+------------------
+✔ Separation of Concerns
+
+✔ Single Source of Truth
+
+✔ Passive State
+
+✔ Solver Ownership
+
+✔ Explicit Validation
+
+✔ Industrial Readability
+
+✔ High Performance
+
+✔ Future Extensibility
 """
 
 from __future__ import annotations
@@ -33,9 +69,14 @@ from physion_core.state.base_state import BaseState
 @dataclass(slots=True, kw_only=True)
 class ElectricalState(BaseState):
     """
-    Electrical state container.
+    Industrial Electrical State.
 
-    Owns every electrical variable inside the simulation.
+    Stores every electrical quantity required by
+    Physion.
+
+    This object owns the electrical state of a cell.
+
+    No computation is performed here.
     """
 
     # =====================================================
@@ -50,6 +91,16 @@ class ElectricalState(BaseState):
 
     overpotential: float = 0.0
 
+    peak_voltage: float = 0.0
+
+    minimum_voltage: float = 0.0
+
+    average_voltage: float = 0.0
+
+    voltage_drop: float = 0.0
+
+    voltage_ripple: float = 0.0
+
     # =====================================================
     # Current
     # =====================================================
@@ -58,13 +109,24 @@ class ElectricalState(BaseState):
 
     current_density: float = 0.0
 
+    current_ripple: float = 0.0
+
+    maximum_current: float = 0.0
+
+    minimum_current: float = 0.0
+
+    average_current: float = 0.0
+
+    reverse_current: bool = False
     # =====================================================
-    # Power / Energy
+    # Charge
     # =====================================================
 
-    power: float = 0.0
+    charge: float = 0.0
 
-    energy: float = 0.0
+    charge_transferred: float = 0.0
+
+    charge_rate: float = 0.0
 
     # =====================================================
     # Capacity
@@ -76,23 +138,105 @@ class ElectricalState(BaseState):
 
     capacity_remaining: float = 0.0
 
+    capacity_lost: float = 0.0
+
+    usable_capacity: float = 0.0
+
     # =====================================================
-    # State of Charge
+    # Internal Consistency Helpers
+    # =====================================================
+
+    charge_balance_error: float = 0.0
+
+    capacity_balance_error: float = 0.0
+
+    capacity_fade: float = 0.0
+    # =====================================================
+    # Energy
+    # =====================================================
+
+    energy: float = 0.0
+
+    energy_available: float = 0.0
+
+    energy_remaining: float = 0.0
+
+    energy_delivered: float = 0.0
+
+    energy_charged: float = 0.0
+
+    energy_loss: float = 0.0
+
+    energy_efficiency: float = 1.0
+
+    # =====================================================
+    # Power
+    # =====================================================
+
+    power: float = 0.0
+
+    power_charge: float = 0.0
+
+    power_discharge: float = 0.0
+
+    peak_power: float = 0.0
+
+    average_power: float = 0.0
+
+    power_loss: float = 0.0
+
+    power_efficiency: float = 1.0
+
+    # =====================================================
+    # State Indicators
     # =====================================================
 
     soc: float = 0.0
 
     dod: float = 0.0
 
+    soe: float = 0.0
+
+    soh: float = 1.0
+
+    sop: float = 1.0
+
     # =====================================================
-    # Resistance
+    # Indicator Diagnostics
+    # =====================================================
+
+    soc_error: float = 0.0
+
+    soe_error: float = 0.0
+
+    soh_error: float = 0.0
+
+    sop_error: float = 0.0
+    # =====================================================
+    # Electrical Resistance
     # =====================================================
 
     ohmic_resistance: float = 0.0
 
     contact_resistance: float = 0.0
 
+    electrolyte_resistance: float = 0.0
+
+    electrode_resistance: float = 0.0
+
+    separator_resistance: float = 0.0
+
+    interfacial_resistance: float = 0.0
+
+    film_resistance: float = 0.0
+
+    charge_transfer_resistance: float = 0.0
+
+    diffusion_resistance: float = 0.0
+
     total_resistance: float = 0.0
+
+    effective_resistance: float = 0.0
 
     # =====================================================
     # Polarization
@@ -100,42 +244,86 @@ class ElectricalState(BaseState):
 
     activation_polarization: float = 0.0
 
-    concentration_polarization: float = 0.0
-
     ohmic_polarization: float = 0.0
 
+    concentration_polarization: float = 0.0
+
+    diffusion_polarization: float = 0.0
+
+    reaction_polarization: float = 0.0
+
+    electrolyte_polarization: float = 0.0
+
+    anode_polarization: float = 0.0
+
+    cathode_polarization: float = 0.0
+
+    interfacial_polarization: float = 0.0
+
     total_polarization: float = 0.0
+
+    effective_overpotential: float = 0.0
+    # =====================================================
+    # Electrical Efficiency
+    # =====================================================
+
+    coulombic_efficiency: float = 1.0
+
+    energy_efficiency: float = 1.0
+
+    voltage_efficiency: float = 1.0
+
+    power_efficiency: float = 1.0
+
+    charge_efficiency: float = 1.0
+
+    discharge_efficiency: float = 1.0
+
+    round_trip_efficiency: float = 1.0
+
+    conversion_efficiency: float = 1.0
+
+    # =====================================================
+    # Electrical Losses
+    # =====================================================
+
+    ohmic_loss: float = 0.0
+
+    activation_loss: float = 0.0
+
+    concentration_loss: float = 0.0
+
+    joule_heating_loss: float = 0.0
+
+    side_reaction_loss: float = 0.0
+
+    leakage_loss: float = 0.0
+
+    parasitic_loss: float = 0.0
+
+    total_electrical_loss: float = 0.0
 
     # =====================================================
     # Diagnostics
     # =====================================================
 
-    coulombic_efficiency: float = 1.0
+    electrical_fault: bool = False
 
-    voltage_drop: float = 0.0
+    short_circuit_detected: bool = False
 
-    power_loss: float = 0.0
+    open_circuit_detected: bool = False
 
-    # =====================================================
-    # Validation
-    # =====================================================
+    reverse_current_detected: bool = False
 
-    def validate_impl(self) -> None:
-        """
-        Validate electrical state.
+    over_voltage: bool = False
 
-        Real validation rules will be expanded as
-        the framework evolves.
-        """
+    under_voltage: bool = False
 
-        if not (0.0 <= self.soc <= 1.0):
-            raise ValueError("SOC must be between 0 and 1.")
+    over_current: bool = False
 
-        if not (0.0 <= self.dod <= 1.0):
-            raise ValueError("DOD must be between 0 and 1.")
+    measurement_valid: bool = True
 
-        if self.total_resistance < 0.0:
-            raise ValueError("Resistance cannot be negative.")
+    solver_converged: bool = True
 
-        if self.capacity_remaining < 0.0:
-            raise ValueError("Remaining capacity cannot be negative.")
+    validation_passed: bool = True
+    
