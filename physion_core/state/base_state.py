@@ -90,11 +90,11 @@ class BaseState(StateMixin):
     # =====================================================
 
     def touch(self) -> None:
-    """
-    Update modification timestamp.
-    """
+        """
+        Update modification timestamp.
+        """
 
-    self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
 
     # =====================================================
     # Lock Management
@@ -280,6 +280,7 @@ class BaseState(StateMixin):
         """
 
         return
+        
     # =====================================================
     # State Information
     # =====================================================
