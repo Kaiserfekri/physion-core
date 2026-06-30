@@ -62,6 +62,7 @@ Physion Principles
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 from physion_core.state.base_state import BaseState
 
@@ -117,7 +118,6 @@ class ElectricalState(BaseState):
 
     average_current: float = 0.0
 
-    reverse_current: bool = False
     # =====================================================
     # Charge
     # =====================================================
@@ -326,4 +326,166 @@ class ElectricalState(BaseState):
     solver_converged: bool = True
 
     validation_passed: bool = True
+    
+    # =====================================================
+    # Validation
+    # =====================================================
+
+    def validate_impl(self) -> None:
+        """
+        Validate the internal consistency of the electrical state.
+
+        Responsibilities
+        ----------------
+        • Verify numerical validity.
+        • Verify state indicator ranges.
+        • Verify capacity consistency.
+        • Verify energy consistency.
+        • Verify resistance consistency.
+        • Verify efficiency consistency.
+
+        Notes
+        -----
+        This method performs validation only.
+
+        It must never:
+            • modify state variables,
+            • execute physics,
+            • call solvers,
+            • repair invalid values.
+        """
+
+            # -------------------------------------------------
+        # Step 1
+        # Finite Number Validation
+        # -------------------------------------------------
+
+        float_fields = (
+            # Voltage
+            self.terminal_voltage,
+            self.ocv,
+            self.equilibrium_voltage,
+            self.overpotential,
+            self.peak_voltage,
+            self.minimum_voltage,
+            self.average_voltage,
+            self.voltage_drop,
+            self.voltage_ripple,
+
+            # Current
+            self.current,
+            self.current_density,
+            self.current_ripple,
+            self.maximum_current,
+            self.minimum_current,
+            self.average_current,
+
+            # Charge
+            self.charge,
+            self.charge_transferred,
+            self.charge_rate,
+
+            # Capacity
+            self.capacity_nominal,
+            self.capacity_available,
+            self.capacity_remaining,
+            self.capacity_lost,
+            self.usable_capacity,
+
+            # Energy
+            self.energy,
+            self.energy_available,
+            self.energy_remaining,
+            self.energy_delivered,
+            self.energy_charged,
+            self.energy_loss,
+            self.energy_efficiency,
+
+            # Power
+            self.power,
+            self.power_charge,
+            self.power_discharge,
+            self.peak_power,
+            self.average_power,
+            self.power_loss,
+            self.power_efficiency,
+
+            # State Indicators
+            self.soc,
+            self.dod,
+            self.soe,
+            self.soh,
+            self.sop,
+
+            # Resistance
+            self.ohmic_resistance,
+            self.contact_resistance,
+            self.electrolyte_resistance,
+            self.electrode_resistance,
+            self.separator_resistance,
+            self.interfacial_resistance,
+            self.film_resistance,
+            self.charge_transfer_resistance,
+            self.diffusion_resistance,
+            self.total_resistance,
+            self.effective_resistance,
+
+            # Polarization
+            self.activation_polarization,
+            self.ohmic_polarization,
+            self.concentration_polarization,
+            self.diffusion_polarization,
+            self.reaction_polarization,
+            self.electrolyte_polarization,
+            self.anode_polarization,
+            self.cathode_polarization,
+            self.interfacial_polarization,
+            self.total_polarization,
+            self.effective_overpotential,
+
+            # Efficiency
+            self.coulombic_efficiency,
+            self.voltage_efficiency,
+            self.charge_efficiency,
+            self.discharge_efficiency,
+            self.round_trip_efficiency,
+            self.conversion_efficiency,
+
+            # Losses
+            self.ohmic_loss,
+            self.activation_loss,
+            self.concentration_loss,
+            self.joule_heating_loss,
+            self.side_reaction_loss,
+            self.leakage_loss,
+            self.parasitic_loss,
+            self.total_electrical_loss,
+
+            # Internal Validation Metrics
+            self.charge_balance_error,
+            self.capacity_balance_error,
+            self.capacity_fade,
+            self.soc_error,
+            self.soe_error,
+            self.soh_error,
+            self.sop_error,
+        )
+
+        if not all(isfinite(value) for value in float_fields):
+            raise ValueError(
+                "ElectricalState contains NaN or infinite values."
+            )
+    charge_balance_error
+
+    capacity_balance_error
+
+    capacity_fade
+
+    soc_error
+
+    soe_error
+
+    soh_error
+
+    sop_error
     
