@@ -18,6 +18,18 @@ Responsibilities
 Contains NO battery physics.
 """
 
+# ==========================================================
+# STATUS
+#
+# Physion Core Frozen Module
+#
+# Version : 1.0
+# Status  : Frozen
+#
+# This file is part of the stable Physion Core.
+# Modify only for bug fixes or architecture changes.
+# ==========================================================
+
 from __future__ import annotations
 
 from dataclasses import (
