@@ -148,17 +148,17 @@ class BaseState(StateMixin):
 
         self.before_update()
 
-    valid_fields = {
+        valid_fields = {
 
-        f.name
+            f.name
 
-        for f in fields(self)
+            for f in fields(self)
 
-        if f.init
+            if f.init
 
-        and not f.name.startswith("_")
+            and not f.name.startswith("_")
 
-}
+        }
 
         for key, value in kwargs.items():
 
