@@ -229,6 +229,53 @@ Stable
 Remarks:
 Reference operating temperature.
 
+--------------------------------------------------
+
+TV006
+
+Variable Name:
+delta_temperature
+
+Description:
+Characteristic temperature difference used by the thermal model.
+
+Unit:
+K
+
+Type:
+float
+
+Default:
+0.0
+
+Range:
+No fixed limit
+
+Validation:
+Finite number.
+
+Solver:
+ThermalSolver
+
+Industrial Source:
+Battery Thermal Management Systems
+
+Scientific Source:
+DFN
+P2D
+Thermal Modeling
+
+Status:
+Stable
+
+Remarks:
+Computed by the active thermal model.
+Typical examples include:
+• core_temperature - surface_temperature
+• maximum_temperature - minimum_temperature
+• temperature - ambient_temperature
+
+
 TG001
 temperature_gradient
 
