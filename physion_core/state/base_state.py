@@ -222,11 +222,11 @@ class BaseState(StateMixin):
 
             else:
 
-               raise RuntimeError(
+                raise RuntimeError(
 
-                  f"Field '{f.name}' has no default value."
+                    f"Field '{f.name}' has no default value."
                                                                                                                 
-               )
+                )
             setattr(
 
                 self,
