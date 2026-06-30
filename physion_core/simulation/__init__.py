@@ -1,25 +1,26 @@
 """
 Physion Simulation Core
+=======================
 
-Central simulation engine package.
+Core simulation package for Physion.
+
+This package contains the central simulation engine and
+its managers.
+
+Modules
+-------
+- cycle_engine
+- state_manager
+- protocol_manager
+- solver_manager
+- event_manager
+- snapshot_manager
+- report_manager
+- time_manager
+
+The public imports will be added after each manager is
+implemented to avoid circular imports and incomplete
+dependencies during development.
 """
 
-from .cycle_engine import CycleEngine
-from .state_manager import StateManager
-from .protocol_manager import ProtocolManager
-from .solver_manager import SolverManager
-from .event_manager import EventManager
-from .snapshot_manager import SnapshotManager
-from .report_manager import ReportManager
-from .time_manager import TimeManager
-
-__all__ = [
-    "CycleEngine",
-    "StateManager",
-    "ProtocolManager",
-    "SolverManager",
-    "EventManager",
-    "SnapshotManager",
-    "ReportManager",
-    "TimeManager",
-]
+__all__: list[str] = []
