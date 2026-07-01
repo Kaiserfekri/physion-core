@@ -6,8 +6,8 @@ Industrial Base Update Object for Physion Framework.
 
 Purpose
 -------
-Defines the immutable contract for every Physion
-Update Object.
+Defines the immutable contract shared by every
+Physion Update Object.
 
 Architecture
 ------------
@@ -31,19 +31,28 @@ Contains
 • NO physics
 • NO numerical methods
 • NO state ownership
+• NO solver logic
 • NO commit logic
 """
 
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import fields
 from datetime import datetime
 from math import isfinite
+from typing import ClassVar
+
 import uuid
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(
+    frozen=True,
+    slots=True,
+    kw_only=True,
+)
 class BaseUpdate(ABC):
     """
     Base class for every Physion Update Object.
@@ -53,7 +62,7 @@ class BaseUpdate(ABC):
     # Framework
     # =====================================================
 
-    VERSION: str = "2.0.0"
+    VERSION: ClassVar[str] = "2.0.0"
 
     # =====================================================
     # Metadata
@@ -71,8 +80,6 @@ class BaseUpdate(ABC):
         repr=False,
     )
 
-    valid: bool = True
-
     # =====================================================
     # Information
     # =====================================================
@@ -88,16 +95,17 @@ class BaseUpdate(ABC):
 
     def validate(self) -> bool:
         """
-        Generic validation shared by every Update.
+        Perform generic validation shared by
+        every Update Object.
 
         Checks
-
-        • finite floating values
-
-        Child classes may extend this method.
+        ------
+        • every floating-point value is finite.
         """
 
-        for value in self.__dict__.values():
+        for item in fields(self):
+
+            value = getattr(self, item.name)
 
             if isinstance(value, float):
 
@@ -105,7 +113,7 @@ class BaseUpdate(ABC):
 
                     return False
 
-        return self.valid
+        return True
 
     # =====================================================
     # Representation
