@@ -72,8 +72,6 @@ class ThermalUpdate(BaseUpdate):
 
     thermal_resistance: float
 
-    thermal_efficiency: float
-
     # =====================================================
     # Validation
     # =====================================================
