@@ -58,6 +58,7 @@ class BaseState(StateMixin):
     # =====================================================
     # Framework Version
     # =====================================================
+from typing import ClassVar
 
     VERSION: str = "2.0.0"
 
@@ -193,6 +194,8 @@ class BaseState(StateMixin):
             )
 
         self.touch()
+        
+        self.validate()
 
         self.after_update()
         
@@ -254,6 +257,8 @@ class BaseState(StateMixin):
             )
 
         self.touch()
+        
+        self.validate()
 
     # =====================================================
     # Validation
