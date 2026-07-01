@@ -12,7 +12,8 @@ Responsibilities
 • State identity
 • State lifecycle
 • Lock management
-• Update
+• Atomic update
+• Atomic reset
 • Validation hooks
 
 Contains NO battery physics.
@@ -23,28 +24,29 @@ Contains NO battery physics.
 #
 # Physion Core Frozen Module
 #
-# Version : 1.0
+# Version : 2.1
 # Status  : Frozen
 #
-# This file is part of the stable Physion Core.
-# Modify only for bug fixes or architecture changes.
 # ==========================================================
 
 from __future__ import annotations
 
-from dataclasses import (
-    dataclass,
-    field,
-    fields,
-    MISSING,
-)
+import copy
+import uuid
 
 from datetime import datetime
 
-from typing import Any
+from dataclasses import (
+    MISSING,
+    dataclass,
+    field,
+    fields,
+)
 
-import copy
-import uuid
+from typing import (
+    Any,
+    ClassVar,
+)
 
 from physion_core.state.state_mixin import StateMixin
 
@@ -52,18 +54,30 @@ from physion_core.state.state_mixin import StateMixin
 @dataclass(slots=True, kw_only=True)
 class BaseState(StateMixin):
     """
-    Base class for every Physion simulation state.
+    Industrial base class for every Physion State.
+
+    Responsibilities
+    ----------------
+    • Identity
+    • Locking
+    • Atomic update
+    • Atomic reset
+    • Validation lifecycle
+
+    Contains
+    --------
+    • NO battery physics
+    • NO numerical methods
     """
 
     # =====================================================
-    # Framework Version
+    # Framework
     # =====================================================
-from typing import ClassVar
 
-    VERSION: str = "2.0.0"
+    VERSION: ClassVar[str] = "2.1.0"
 
     # =====================================================
-    # Internal Metadata
+    # Metadata
     # =====================================================
 
     state_id: str = field(
@@ -73,13 +87,13 @@ from typing import ClassVar
     )
 
     created_at: datetime = field(
-        default_factory=lambda: datetime.utcnow(),
+        default_factory=datetime.utcnow,
         init=False,
         repr=False,
     )
 
     updated_at: datetime = field(
-        default_factory=lambda: datetime.utcnow(),
+        default_factory=datetime.utcnow,
         init=False,
         repr=False,
     )
@@ -95,7 +109,9 @@ from typing import ClassVar
     # =====================================================
 
     def __post_init__(self) -> None:
-
+        """
+        Initialize timestamps.
+        """
         self.touch()
 
     # =====================================================
@@ -106,7 +122,6 @@ from typing import ClassVar
         """
         Update modification timestamp.
         """
-
         self.updated_at = datetime.utcnow()
 
     # =====================================================
@@ -114,151 +129,238 @@ from typing import ClassVar
     # =====================================================
 
     def lock(self) -> None:
-
+        """
+        Lock state against modification.
+        """
         self._locked = True
 
     def unlock(self) -> None:
-
+        """
+        Unlock state.
+        """
         self._locked = False
 
     @property
     def is_locked(self) -> bool:
-
+        """
+        Lock status.
+        """
         return self._locked
 
     # =====================================================
-    # Hooks
+    # Update Hooks
     # =====================================================
 
     def before_update(self) -> None:
         """
-        Override in child classes.
+        Override when needed.
         """
         return
 
     def after_update(self) -> None:
         """
-        Override in child classes.
+        Override when needed.
         """
         return
 
     # =====================================================
-    # Update
+    # Validation Hooks
+    # =====================================================
+
+    def before_validate(self) -> None:
+        """
+        Override when needed.
+        """
+        return
+
+    def validate_impl(self) -> None:
+        """
+        Override in derived State classes.
+        """
+        return
+
+    def after_validate(self) -> None:
+        """
+        Override when needed.
+        """
+        return
+            # =====================================================
+    # Atomic Update
     # =====================================================
 
     def update(
         self,
         **kwargs: Any,
     ) -> None:
+        """
+        Atomically update state.
+
+        The update is committed only if validation succeeds.
+        """
 
         if self._locked:
-
             raise RuntimeError(
-
-                f"{self.__class__.__name__} is locked."
-
+                f"{self.class_name} is locked."
             )
 
         self.before_update()
 
         valid_fields = {
-
             f.name
-
             for f in fields(self)
-
-            if f.init
-
-            and not f.name.startswith("_")
-
+            if f.init and not f.name.startswith("_")
         }
 
-        for key, value in kwargs.items():
+        unknown = set(kwargs) - valid_fields
 
-            if key not in valid_fields:
-
-                raise AttributeError(
-
-                    f"Unknown field '{key}'."
-
-                )
-
-            setattr(
-
-                self,
-
-                key,
-
-                value,
-
+        if unknown:
+            raise AttributeError(
+                f"Unknown field(s): {', '.join(sorted(unknown))}"
             )
 
+        # ---------------------------------------------
+        # Transaction Snapshot
+        # ---------------------------------------------
+
+        snapshot = {
+            name: copy.deepcopy(
+                getattr(self, name)
+            )
+            for name in valid_fields
+        }
+
+        try:
+
+            # -----------------------------------------
+            # Apply New Values
+            # -----------------------------------------
+
+            for key, value in kwargs.items():
+
+                setattr(
+                    self,
+                    key,
+                    value,
+                )
+
+            # -----------------------------------------
+            # Validate New State
+            # -----------------------------------------
+
+            self.validate()
+
+        except Exception:
+
+            # -----------------------------------------
+            # Rollback
+            # -----------------------------------------
+
+            for key, value in snapshot.items():
+
+                setattr(
+                    self,
+                    key,
+                    value,
+                )
+
+            raise
+
+        # ---------------------------------------------
+        # Commit
+        # ---------------------------------------------
+
         self.touch()
-        
-        self.validate()
 
         self.after_update()
-        
-    # =====================================================
-    # Reset
+            # =====================================================
+    # Atomic Reset
     # =====================================================
 
     def reset(self) -> None:
         """
-        Restore all public dataclass fields to their
+        Atomically restore all public fields to their
         declared default values.
         """
 
         if self._locked:
-
             raise RuntimeError(
-
-                f"{self.__class__.__name__} is locked."
-
+                f"{self.class_name} is locked."
             )
 
-        for f in fields(self):
+        valid_fields = [
+            f
+            for f in fields(self)
+            if f.init and not f.name.startswith("_")
+        ]
 
-            if f.name.startswith("_"):
+        # ---------------------------------------------
+        # Transaction Snapshot
+        # ---------------------------------------------
 
-                continue
-
-            if not f.init:
-
-                continue
-
-            if f.default is not MISSING:
-
-                value = copy.deepcopy(
-
-                    f.default
-
-                )
-
-            elif f.default_factory is not MISSING:
-
-                value = f.default_factory()
-
-            else:
-
-                raise RuntimeError(
-
-                    f"Field '{f.name}' has no default value."
-                                                                                                                
-                )
-            setattr(
-
-                self,
-
-                f.name,
-
-                value,
-
+        snapshot = {
+            f.name: copy.deepcopy(
+                getattr(self, f.name)
             )
+            for f in valid_fields
+        }
+
+        try:
+
+            # -----------------------------------------
+            # Apply Defaults
+            # -----------------------------------------
+
+            for f in valid_fields:
+
+                if f.default is not MISSING:
+
+                    value = copy.deepcopy(
+                        f.default
+                    )
+
+                elif f.default_factory is not MISSING:
+
+                    value = f.default_factory()
+
+                else:
+
+                    raise RuntimeError(
+                        f"Field '{f.name}' has no default value."
+                    )
+
+                setattr(
+                    self,
+                    f.name,
+                    value,
+                )
+
+            # -----------------------------------------
+            # Validate
+            # -----------------------------------------
+
+            self.validate()
+
+        except Exception:
+
+            # -----------------------------------------
+            # Rollback
+            # -----------------------------------------
+
+            for key, value in snapshot.items():
+
+                setattr(
+                    self,
+                    key,
+                    value,
+                )
+
+            raise
+
+        # ---------------------------------------------
+        # Commit
+        # ---------------------------------------------
 
         self.touch()
-        
-        self.validate()
 
     # =====================================================
     # Validation
@@ -275,65 +377,23 @@ from typing import ClassVar
 
         self.after_validate()
 
-    # -----------------------------------------------------
-
-    def before_validate(self) -> None:
-        """
-        Validation hook.
-        """
-
-        return
-
-    # -----------------------------------------------------
-
-    def validate_impl(self) -> None:
-        """
-        Override in child classes.
-        """
-
-        return
-
-    # -----------------------------------------------------
-
-    def after_validate(self) -> None:
-        """
-        Validation hook.
-        """
-
-        return
-        
     # =====================================================
-    # State Information
+    # Information
     # =====================================================
 
     @property
     def class_name(self) -> str:
-        """
-        Return state class name.
-        """
-
         return self.__class__.__name__
-
-    # -----------------------------------------------------
 
     @property
     def age_seconds(self) -> float:
-        """
-        Seconds since creation.
-        """
-
         return (
-
-            self.updated_at
-
-            -
-
+            self.updated_at -
             self.created_at
-
         ).total_seconds()
 
     # =====================================================
-    # Equality
+    # Equality / Hash
     # =====================================================
 
     def __eq__(
@@ -342,35 +402,19 @@ from typing import ClassVar
     ) -> bool:
 
         if not isinstance(
-
             other,
-
             self.__class__,
-
         ):
-
             return False
 
         return (
-
-            self.state_id
-
-            ==
-
+            self.state_id ==
             other.state_id
-
         )
 
-    # =====================================================
-    # Hash
-    # =====================================================
-
     def __hash__(self) -> int:
-
         return hash(
-
             self.state_id
-
         )
 
     # =====================================================
@@ -380,17 +424,11 @@ from typing import ClassVar
     def __repr__(self) -> str:
 
         return (
-
             f"{self.class_name}"
-
             "("
-
             f"id={self.state_id[:8]}, "
-
             f"locked={self.is_locked}"
-
             ")"
-
         )
 
     # =====================================================
@@ -403,15 +441,10 @@ from typing import ClassVar
         """
 
         return {
-
             "class": self.class_name,
-
             "state_id": self.state_id,
-
             "locked": self.is_locked,
-
             "created_at": self.created_at,
-
             "updated_at": self.updated_at,
-
         }
+        
