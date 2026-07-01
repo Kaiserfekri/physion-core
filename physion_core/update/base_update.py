@@ -23,7 +23,7 @@ Responsibilities
 ----------------
 • Immutable update container
 • Metadata
-• Validation hooks
+• Generic validation
 • Lightweight diagnostics
 
 Contains
@@ -32,23 +32,14 @@ Contains
 • NO numerical methods
 • NO state ownership
 • NO commit logic
-
-Physion Principles
-------------------
-✔ Immutable
-✔ Type Safe
-✔ Passive Object
-✔ Single Responsibility
-✔ High Performance
-✔ Industrial Readability
 """
 
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass, field
 from datetime import datetime
-from abc import ABC
-
+from math import isfinite
 import uuid
 
 
@@ -56,15 +47,10 @@ import uuid
 class BaseUpdate(ABC):
     """
     Base class for every Physion Update Object.
-
-    Update objects are immutable.
-
-    They transport solver results to the
-    Commit Manager.
     """
 
     # =====================================================
-    # Framework Version
+    # Framework
     # =====================================================
 
     VERSION: str = "2.0.0"
@@ -85,10 +71,6 @@ class BaseUpdate(ABC):
         repr=False,
     )
 
-    # =====================================================
-    # Diagnostics
-    # =====================================================
-
     valid: bool = True
 
     # =====================================================
@@ -97,21 +79,32 @@ class BaseUpdate(ABC):
 
     @property
     def class_name(self) -> str:
-        """
-        Return update class name.
-        """
+
         return self.__class__.__name__
 
     # =====================================================
-    # Validation
+    # Generic Validation
     # =====================================================
 
     def validate(self) -> bool:
         """
-        Validate update object.
+        Generic validation shared by every Update.
 
-        Child classes may override.
+        Checks
+
+        • finite floating values
+
+        Child classes may extend this method.
         """
+
+        for value in self.__dict__.values():
+
+            if isinstance(value, float):
+
+                if not isfinite(value):
+
+                    return False
+
         return self.valid
 
     # =====================================================
@@ -121,8 +114,13 @@ class BaseUpdate(ABC):
     def __repr__(self) -> str:
 
         return (
+
             f"{self.class_name}"
+
             "("
+
             f"id={self.update_id[:8]}"
+
             ")"
+
         )
