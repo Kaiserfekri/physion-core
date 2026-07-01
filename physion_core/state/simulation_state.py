@@ -2,32 +2,61 @@
 simulation_state.py
 ===================
 
-Simulation execution state.
+Industrial Simulation State for Physion Framework.
 
-This module stores only the execution status of the
-simulation.
+Purpose
+-------
+Owns every simulation execution variable used
+throughout the Physion Framework.
 
-It never performs numerical calculations.
+Architecture
+------------
+• Owns execution state only.
+• Contains NO numerical methods.
+• Contains NO solver logic.
+• Updated exclusively by SimulationSolver.
 
-Physion Core Principle
-----------------------
-SimulationState owns only simulation execution data.
+Categories
+----------
+• Time
+• Cycle Information
+• Solver Status
+• Execution Status
+
+Notes
+-----
+This class is intentionally passive.
+
+All execution logic belongs to SimulationSolver.
+
+Physion Principles
+------------------
+✔ Separation of Concerns
+✔ Single Source of Truth
+✔ Passive State
+✔ Solver Ownership
+✔ Explicit Validation
+✔ Industrial Readability
+✔ High Performance
+✔ Future Extensibility
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-import copy
+from dataclasses import dataclass
+
+from physion_core.state.base_state import BaseState
 
 
-@dataclass(slots=True)
-class SimulationState:
+@dataclass(slots=True, kw_only=True)
+class SimulationState(BaseState):
     """
-    Simulation execution state.
+    Industrial Simulation State.
 
-    Notes
-    -----
-    Stores only execution-related variables.
+    Stores every execution-related quantity required
+    by Physion.
+
+    No computation is performed here.
     """
 
     # =====================================================
@@ -39,7 +68,7 @@ class SimulationState:
     dt: float = 0.0
 
     # =====================================================
-    # Cycle information
+    # Cycle Information
     # =====================================================
 
     cycle: int = 0
@@ -57,7 +86,7 @@ class SimulationState:
     solver_iterations: int = 0
 
     # =====================================================
-    # Status
+    # Execution Status
     # =====================================================
 
     running: bool = False
@@ -69,104 +98,85 @@ class SimulationState:
     aborted: bool = False
 
     # =====================================================
-    # Reset
-    # =====================================================
-
-    def reset(self) -> None:
-        """
-        Reset simulation state.
-        """
-
-        self.time = 0.0
-        self.dt = 0.0
-
-        self.cycle = 0
-        self.step = 0
-        self.iteration = 0
-
-        self.converged = True
-        self.solver_iterations = 0
-
-        self.running = False
-        self.paused = False
-        self.finished = False
-        self.aborted = False
-
-    # =====================================================
-    # Copy
-    # =====================================================
-
-    def copy(self) -> "SimulationState":
-        """
-        Return a deep copy.
-        """
-
-        return copy.deepcopy(self)
-
-    # =====================================================
-    # Dictionary conversion
-    # =====================================================
-
-    def to_dict(self) -> dict:
-        """
-        Convert state to dictionary.
-        """
-
-        return asdict(self)
-
-    # =====================================================
-    # Restore
-    # =====================================================
-
-    def from_dict(
-        self,
-        data: dict,
-    ) -> None:
-        """
-        Restore state from dictionary.
-        """
-
-        for key, value in data.items():
-
-            if hasattr(self, key):
-
-                setattr(self, key, value)
-
-    # =====================================================
     # Validation
     # =====================================================
 
-    def validate(self) -> None:
+    def validate_impl(self) -> None:
         """
-        Validate simulation state.
+        Validate simulation execution state.
         """
 
-        if self.time < 0:
-
+        if self.time < 0.0:
             raise ValueError(
                 "Simulation time cannot be negative."
             )
 
-        if self.dt < 0:
-
+        if self.dt < 0.0:
             raise ValueError(
                 "Time step cannot be negative."
             )
 
         if self.cycle < 0:
-
             raise ValueError(
                 "Cycle number cannot be negative."
             )
 
         if self.step < 0:
-
             raise ValueError(
                 "Step number cannot be negative."
             )
 
         if self.iteration < 0:
-
             raise ValueError(
                 "Iteration number cannot be negative."
+            )
+
+        if self.solver_iterations < 0:
+            raise ValueError(
+                "Solver iterations cannot be negative."
+            )
+
+        # ---------------------------------------------
+        # Time Consistency
+        # ---------------------------------------------
+
+        if self.running and self.dt <= 0.0:
+            raise ValueError(
+                "Running simulation requires dt > 0."
+            )
+
+        # ---------------------------------------------
+        # Execution State Consistency
+        # ---------------------------------------------
+
+        if self.finished and self.paused:
+            raise ValueError(
+                "Finished simulation cannot be paused."
+            )
+
+        if self.aborted and self.paused:
+            raise ValueError(
+                "Aborted simulation cannot be paused."
+            )
+            
+        active_states = (
+            int(self.running)
+            + int(self.paused)
+            + int(self.finished)
+            + int(self.aborted)
+        )
+
+        if active_states > 1:
+            raise ValueError(
+                "Simulation execution states are mutually exclusive."
+            )
+
+        if self.finished and self.running:
+            raise ValueError(
+                "Finished simulation cannot be running."
+            )
+
+        if self.aborted and self.running:
+            raise ValueError(
+                "Aborted simulation cannot be running."
             )
