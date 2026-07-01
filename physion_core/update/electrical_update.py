@@ -56,11 +56,7 @@ class ElectricalUpdate(BaseUpdate):
 
     power: float
 
-    capacity: float
-
     state_of_charge: float
-
-    state_of_health: float
 
     open_circuit_voltage: float
 
