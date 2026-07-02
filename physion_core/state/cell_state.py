@@ -6,123 +6,200 @@ Industrial Cell State for Physion Framework.
 
 Purpose
 -------
-Owns every cell-level variable used throughout
-the Physion Framework.
-
-Architecture
-------------
-• Owns cell identity only.
-• Contains NO battery physics.
-• Contains NO numerical methods.
-• Contains NO solver logic.
-• Updated exclusively by CellSolver.
-
-Categories
-----------
-• Cell Identity
-• Configuration
-• Operating Mode
-• Operating Limits
-• Diagnostics
+Owns the identity, configuration and metadata
+of a battery cell.
 
 Notes
 -----
-This class is intentionally passive.
+CellState is NOT a physics state.
 
-All calculations belong to CellSolver.
+It never stores:
+
+- Voltage
+- Current
+- Temperature
+- Stress
+- Concentration
+- SOC
+- SOH
+
+Those belong to their dedicated states.
 
 Physion Principles
 ------------------
 ✔ Separation of Concerns
+
 ✔ Single Source of Truth
+
 ✔ Passive State
-✔ Solver Ownership
+
 ✔ Explicit Validation
-✔ Industrial Readability
-✔ High Performance
+
+✔ High Readability
+
 ✔ Future Extensibility
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 
 from physion_core.state.base_state import BaseState
 
+from physion_core.cell.cell_enums import (
+    CellFormat,
+    CellChemistry,
+    CellOperatingMode,
+    CellLifecycleStatus,
+    CellHealthStatus,
+    DiagnosticStatus,
+)
+
+# ==========================================================
+# Cell Identity
+# ==========================================================
+
+@dataclass(slots=True, kw_only=True)
+class CellIdentity:
+
+    manufacturer: str = ""
+
+    model: str = ""
+
+    serial_number: str = ""
+
+    batch_number: str = ""
+
+    production_date: date | None = None
+
+    revision: str = ""
+    
+    # ==========================================================
+# Cell Configuration
+# ==========================================================
+
+@dataclass(slots=True, kw_only=True)
+class CellConfiguration:
+
+    chemistry: CellChemistry = CellChemistry.NMC
+
+    cell_format: CellFormat = CellFormat.CYLINDRICAL
+
+    series_cells: int = 1
+
+    parallel_cells: int = 1
+
+    nominal_capacity_ah: float = 0.0
+
+    nominal_voltage_v: float = 0.0
+
+    nominal_energy_wh: float = 0.0
+
+
+# ==========================================================
+# Cell Operating Limits
+# ==========================================================
+
+@dataclass(slots=True, kw_only=True)
+class CellLimits:
+
+    maximum_voltage_v: float = 0.0
+
+    minimum_voltage_v: float = 0.0
+
+    maximum_charge_current_a: float = 0.0
+
+    maximum_discharge_current_a: float = 0.0
+
+    maximum_temperature_k: float = 0.0
+
+    minimum_temperature_k: float = 0.0
+
+    maximum_pressure_pa: float = 0.0
+    
+    # ==========================================================
+# Cell Metadata
+# ==========================================================
+
+@dataclass(slots=True, kw_only=True)
+class CellMetadata:
+
+    operating_mode: CellOperatingMode = (
+        CellOperatingMode.INITIALIZATION
+    )
+
+    lifecycle_status: CellLifecycleStatus = (
+        CellLifecycleStatus.MANUFACTURED
+    )
+
+    health_status: CellHealthStatus = (
+        CellHealthStatus.EXCELLENT
+    )
+
+    diagnostic_status: DiagnosticStatus = (
+        DiagnosticStatus.NORMAL
+    )
+
+    enabled: bool = True
+
+    initialized: bool = False
+
+    validated: bool = False
+
+    archived: bool = False
+
+    user_tag: str = ""
+
+    description: str = ""
+    
+    # ==========================================================
+# Cell State
+# ==========================================================
 
 @dataclass(slots=True, kw_only=True)
 class CellState(BaseState):
     """
     Industrial Cell State.
+
+    Owns the identity, configuration and
+    metadata of a battery cell.
+
+    This class intentionally contains
+    NO electrochemical variables.
     """
 
-    # =====================================================
+    # ------------------------------------------------------
     # Identity
-    # =====================================================
+    # ------------------------------------------------------
 
-    cell_name: str = ""
+    identity: CellIdentity = field(
+        default_factory=CellIdentity
+    )
 
-    cell_type: str = ""
-
-    chemistry: str = ""
-
-    manufacturer: str = ""
-
-    serial_number: str = ""
-
-    # =====================================================
+    # ------------------------------------------------------
     # Configuration
-    # =====================================================
+    # ------------------------------------------------------
 
-    parallel_cells: int = 1
+    configuration: CellConfiguration = field(
+        default_factory=CellConfiguration
+    )
 
-    series_cells: int = 1
-
-    nominal_capacity: float = 0.0
-
-    nominal_voltage: float = 0.0
-
-    nominal_energy: float = 0.0
-
-    # =====================================================
-    # Operating Mode
-    # =====================================================
-
-    charging: bool = False
-
-    discharging: bool = False
-
-    resting: bool = True
-
-    balancing: bool = False
-
-    # =====================================================
+    # ------------------------------------------------------
     # Operating Limits
-    # =====================================================
+    # ------------------------------------------------------
 
-    maximum_voltage: float = 0.0
+    limits: CellLimits = field(
+        default_factory=CellLimits
+    )
 
-    minimum_voltage: float = 0.0
+    # ------------------------------------------------------
+    # Metadata
+    # ------------------------------------------------------
 
-    maximum_current: float = 0.0
-
-    maximum_temperature: float = 0.0
-
-    minimum_temperature: float = 0.0
-
-    # =====================================================
-    # Diagnostics
-    # =====================================================
-
-    cell_warning: bool = False
-
-    cell_fault: bool = False
-
-    measurement_valid: bool = True
-
-    solver_converged: bool = True
-
-    validation_passed: bool = True
+    metadata: CellMetadata = field(
+        default_factory=CellMetadata
+    )
     
         # =====================================================
     # Validation
@@ -132,99 +209,71 @@ class CellState(BaseState):
         """
         Validate CellState.
 
-        Validation only.
+        CellState owns only identity,
+        configuration and metadata.
 
-        No physics.
-        No solver.
-        No state modification.
+        No physics validation is performed here.
         """
 
-        # -------------------------------------------------
-        # Cell Counts
-        # -------------------------------------------------
+        # ---------------------------------------------
+        # Configuration
+        # ---------------------------------------------
 
-        if self.parallel_cells < 1:
+        if self.configuration.series_cells < 1:
             raise ValueError(
-                "parallel_cells must be at least 1."
+                "series_cells must be >= 1."
             )
 
-        if self.series_cells < 1:
+        if self.configuration.parallel_cells < 1:
             raise ValueError(
-                "series_cells must be at least 1."
+                "parallel_cells must be >= 1."
             )
 
-        # -------------------------------------------------
-        # Nominal Values
-        # -------------------------------------------------
-
-        if self.nominal_capacity < 0.0:
+        if self.configuration.nominal_capacity_ah < 0.0:
             raise ValueError(
-                "Nominal capacity cannot be negative."
+                "nominal_capacity_ah cannot be negative."
             )
 
-        if self.nominal_voltage < 0.0:
+        if self.configuration.nominal_voltage_v < 0.0:
             raise ValueError(
-                "Nominal voltage cannot be negative."
+                "nominal_voltage_v cannot be negative."
             )
 
-        if self.nominal_energy < 0.0:
+        if self.configuration.nominal_energy_wh < 0.0:
             raise ValueError(
-                "Nominal energy cannot be negative."
+                "nominal_energy_wh cannot be negative."
             )
 
-        # -------------------------------------------------
+        # ---------------------------------------------
         # Limits
-        # -------------------------------------------------
+        # ---------------------------------------------
 
-        if self.maximum_voltage < 0.0:
+        if (
+            self.limits.maximum_voltage_v
+            <
+            self.limits.minimum_voltage_v
+        ):
             raise ValueError(
-                "Maximum voltage cannot be negative."
-            )
-
-        if self.minimum_voltage < 0.0:
-            raise ValueError(
-                "Minimum voltage cannot be negative."
+                "Maximum voltage must be >= minimum voltage."
             )
 
         if (
-            self.maximum_voltage > 0.0
-            and self.minimum_voltage > self.maximum_voltage
+            self.limits.maximum_temperature_k
+            <
+            self.limits.minimum_temperature_k
         ):
             raise ValueError(
-                "Minimum voltage cannot exceed maximum voltage."
+                "Maximum temperature must be >= minimum temperature."
             )
 
-        if self.maximum_current < 0.0:
+        # ---------------------------------------------
+        # Identity
+        # ---------------------------------------------
+
+        if not self.identity.serial_number.strip():
             raise ValueError(
-                "Maximum current cannot be negative."
+                "serial_number cannot be empty."
             )
-
-        if (
-            self.maximum_temperature > 0.0
-            and self.minimum_temperature > self.maximum_temperature
-        ):
-            raise ValueError(
-                "Minimum temperature cannot exceed maximum temperature."
-            )
-
-        # -------------------------------------------------
-        # Operating Mode
-        # -------------------------------------------------
-
-        active_modes = (
-            int(self.charging)
-            + int(self.discharging)
-            + int(self.resting)
-        )
-
-        if active_modes != 1:
-            raise ValueError(
-                "Exactly one operating mode must be active."
-            )
-
-        if self.balancing and self.resting:
-            raise ValueError(
-                "Balancing cannot be active while resting."
-            )
+            
             
             
